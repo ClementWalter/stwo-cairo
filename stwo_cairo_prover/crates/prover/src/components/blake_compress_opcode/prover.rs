@@ -23,7 +23,7 @@ impl ClaimGenerator {
     pub fn write_trace<MC: MerkleChannel>(
         mut self,
         tree_builder: &mut TreeBuilder<'_, '_, SimdBackend, MC>,
-        blake_round_state: &blake_round::ClaimGenerator,
+        blake_round_state: &mut blake_round::ClaimGenerator,
         memory_address_to_id_state: &memory_address_to_id::ClaimGenerator,
         memory_id_to_big_state: &memory_id_to_big::ClaimGenerator,
         range_check_7_2_5_state: &range_check_7_2_5::ClaimGenerator,
@@ -71,6 +71,11 @@ struct TripleXor32Input {
     inputs: [Vec<triple_xor_32::PackedInputType>; 8],
 }
 
+#[derive(Uninitialized, IterMut, ParIterMut)]
+struct BlakeRoundInput {
+    inputs: [Vec<blake_round::PackedInputType>; 10],
+}
+
 #[allow(clippy::useless_conversion)]
 #[allow(unused_variables)]
 #[allow(clippy::double_parens)]
@@ -78,7 +83,7 @@ struct TripleXor32Input {
 fn write_trace_simd(
     n_rows: usize,
     inputs: Vec<PackedInputType>,
-    blake_round_state: &blake_round::ClaimGenerator,
+    blake_round_state: &mut blake_round::ClaimGenerator,
     memory_address_to_id_state: &memory_address_to_id::ClaimGenerator,
     memory_id_to_big_state: &memory_id_to_big::ClaimGenerator,
     range_check_7_2_5_state: &range_check_7_2_5::ClaimGenerator,
@@ -88,11 +93,12 @@ fn write_trace_simd(
 ) -> (ComponentTrace<N_TRACE_COLUMNS>, LookupData) {
     let log_n_packed_rows = inputs.len().ilog2();
     let log_size = log_n_packed_rows + LOG_N_LANES;
-    let (mut trace, mut lookup_data, mut triple_xor_inputs) = unsafe {
+    let (mut trace, mut lookup_data, mut triple_xor_inputs, mut blake_round_inputs) = unsafe {
         (
             ComponentTrace::<N_TRACE_COLUMNS>::uninitialized(log_size),
             LookupData::uninitialized(log_n_packed_rows),
             TripleXor32Input::uninitialized(log_n_packed_rows),
+            BlakeRoundInput::uninitialized(log_n_packed_rows),
         )
     };
 
@@ -167,10 +173,14 @@ fn write_trace_simd(
         .zip(inputs.into_par_iter())
         .zip(lookup_data.par_iter_mut())
         .zip(triple_xor_inputs.par_iter_mut())
+        .zip(blake_round_inputs.par_iter_mut())
         .for_each(
             |(
-                (((row_index, mut row), blake_compress_opcode_input), lookup_data),
-                triple_xor_input,
+                (
+                    (((row_index, mut row), blake_compress_opcode_input), lookup_data),
+                    triple_xor_input,
+                ),
+                blake_round_input,
             )| {
                 let seq = Seq::new(log_size).packed_at(row_index);
                 let input_tmp_53f39_0 = blake_compress_opcode_input;
@@ -1556,8 +1566,7 @@ fn write_trace_simd(
                         (((op1_limb_0_col19) + ((op1_limb_1_col20) * (M31_512)))
                             + ((op1_limb_2_col21) * (M31_262144))),
                     ),
-                )
-                    .unpack();
+                );
                 let blake_round_output_round_0_tmp_53f39_95 = blake_round_state.deduce_output((
                     ((seq) * (M31_1)),
                     M31_0,
@@ -1618,8 +1627,7 @@ fn write_trace_simd(
                         ],
                         blake_round_output_round_0_tmp_53f39_95.2 .1,
                     ),
-                )
-                    .unpack();
+                );
                 let blake_round_output_round_1_tmp_53f39_96 = blake_round_state.deduce_output((
                     ((seq) * (M31_1)),
                     M31_1,
@@ -1669,8 +1677,7 @@ fn write_trace_simd(
                         ],
                         blake_round_output_round_1_tmp_53f39_96.2 .1,
                     ),
-                )
-                    .unpack();
+                );
                 let blake_round_output_round_2_tmp_53f39_97 = blake_round_state.deduce_output((
                     ((seq) * (M31_1)),
                     M31_2,
@@ -1720,8 +1727,7 @@ fn write_trace_simd(
                         ],
                         blake_round_output_round_2_tmp_53f39_97.2 .1,
                     ),
-                )
-                    .unpack();
+                );
                 let blake_round_output_round_3_tmp_53f39_98 = blake_round_state.deduce_output((
                     ((seq) * (M31_1)),
                     M31_3,
@@ -1771,8 +1777,7 @@ fn write_trace_simd(
                         ],
                         blake_round_output_round_3_tmp_53f39_98.2 .1,
                     ),
-                )
-                    .unpack();
+                );
                 let blake_round_output_round_4_tmp_53f39_99 = blake_round_state.deduce_output((
                     ((seq) * (M31_1)),
                     M31_4,
@@ -1822,8 +1827,7 @@ fn write_trace_simd(
                         ],
                         blake_round_output_round_4_tmp_53f39_99.2 .1,
                     ),
-                )
-                    .unpack();
+                );
                 let blake_round_output_round_5_tmp_53f39_100 = blake_round_state.deduce_output((
                     ((seq) * (M31_1)),
                     M31_5,
@@ -1873,8 +1877,7 @@ fn write_trace_simd(
                         ],
                         blake_round_output_round_5_tmp_53f39_100.2 .1,
                     ),
-                )
-                    .unpack();
+                );
                 let blake_round_output_round_6_tmp_53f39_101 = blake_round_state.deduce_output((
                     ((seq) * (M31_1)),
                     M31_6,
@@ -1924,8 +1927,7 @@ fn write_trace_simd(
                         ],
                         blake_round_output_round_6_tmp_53f39_101.2 .1,
                     ),
-                )
-                    .unpack();
+                );
                 let blake_round_output_round_7_tmp_53f39_102 = blake_round_state.deduce_output((
                     ((seq) * (M31_1)),
                     M31_7,
@@ -1975,8 +1977,7 @@ fn write_trace_simd(
                         ],
                         blake_round_output_round_7_tmp_53f39_102.2 .1,
                     ),
-                )
-                    .unpack();
+                );
                 let blake_round_output_round_8_tmp_53f39_103 = blake_round_state.deduce_output((
                     ((seq) * (M31_1)),
                     M31_8,
@@ -2026,8 +2027,7 @@ fn write_trace_simd(
                         ],
                         blake_round_output_round_8_tmp_53f39_103.2 .1,
                     ),
-                )
-                    .unpack();
+                );
                 let blake_round_output_round_9_tmp_53f39_104 = blake_round_state.deduce_output((
                     ((seq) * (M31_1)),
                     M31_9,
@@ -3172,16 +3172,16 @@ fn write_trace_simd(
                 verify_bitwise_xor_8_state.add_inputs(&verify_bitwise_xor_8_inputs_1);
                 verify_bitwise_xor_8_state.add_inputs(&verify_bitwise_xor_8_inputs_2);
                 verify_bitwise_xor_8_state.add_inputs(&verify_bitwise_xor_8_inputs_3);
-                blake_round_state.add_inputs(&blake_round_inputs_0);
-                blake_round_state.add_inputs(&blake_round_inputs_1);
-                blake_round_state.add_inputs(&blake_round_inputs_2);
-                blake_round_state.add_inputs(&blake_round_inputs_3);
-                blake_round_state.add_inputs(&blake_round_inputs_4);
-                blake_round_state.add_inputs(&blake_round_inputs_5);
-                blake_round_state.add_inputs(&blake_round_inputs_6);
-                blake_round_state.add_inputs(&blake_round_inputs_7);
-                blake_round_state.add_inputs(&blake_round_inputs_8);
-                blake_round_state.add_inputs(&blake_round_inputs_9);
+                *blake_round_input.inputs[0] = blake_round_inputs_0;
+                *blake_round_input.inputs[1] = blake_round_inputs_1;
+                *blake_round_input.inputs[2] = blake_round_inputs_2;
+                *blake_round_input.inputs[3] = blake_round_inputs_3;
+                *blake_round_input.inputs[4] = blake_round_inputs_4;
+                *blake_round_input.inputs[5] = blake_round_inputs_5;
+                *blake_round_input.inputs[6] = blake_round_inputs_6;
+                *blake_round_input.inputs[7] = blake_round_inputs_7;
+                *blake_round_input.inputs[8] = blake_round_inputs_8;
+                *blake_round_input.inputs[9] = blake_round_inputs_9;
                 *triple_xor_input.inputs[0] = triple_xor_32_inputs_0;
                 *triple_xor_input.inputs[1] = triple_xor_32_inputs_1;
                 *triple_xor_input.inputs[2] = triple_xor_32_inputs_2;
@@ -3225,6 +3225,17 @@ fn write_trace_simd(
     triple_xor_32_state.add_packed_inputs(&triple_xor_inputs.inputs[5]);
     triple_xor_32_state.add_packed_inputs(&triple_xor_inputs.inputs[6]);
     triple_xor_32_state.add_packed_inputs(&triple_xor_inputs.inputs[7]);
+
+    blake_round_state.add_packed_inputs(&blake_round_inputs.inputs[0]);
+    blake_round_state.add_packed_inputs(&blake_round_inputs.inputs[1]);
+    blake_round_state.add_packed_inputs(&blake_round_inputs.inputs[2]);
+    blake_round_state.add_packed_inputs(&blake_round_inputs.inputs[3]);
+    blake_round_state.add_packed_inputs(&blake_round_inputs.inputs[4]);
+    blake_round_state.add_packed_inputs(&blake_round_inputs.inputs[5]);
+    blake_round_state.add_packed_inputs(&blake_round_inputs.inputs[6]);
+    blake_round_state.add_packed_inputs(&blake_round_inputs.inputs[7]);
+    blake_round_state.add_packed_inputs(&blake_round_inputs.inputs[8]);
+    blake_round_state.add_packed_inputs(&blake_round_inputs.inputs[9]);
 
     (trace, lookup_data)
 }

@@ -1,5 +1,7 @@
 #![allow(unused_parens)]
 #![allow(unused_imports)]
+use itertools::Itertools;
+
 use super::component::{Claim, InteractionClaim};
 use crate::components::prelude::proving::*;
 use crate::components::{
@@ -16,8 +18,8 @@ pub struct ClaimGenerator {
     pub inputs: Vec<InputType>,
 }
 impl ClaimGenerator {
-    pub fn new(inputs: Vec<InputType>) -> Self {
-        Self { inputs }
+    pub fn new() -> Self {
+        Self { inputs: vec![] }
     }
 
     pub fn write_trace<MC: MerkleChannel>(
@@ -60,14 +62,17 @@ impl ClaimGenerator {
         )
     }
 
-    pub fn add_input(&self, input: &InputType) {
-        unimplemented!("Implement manually");
+    pub fn add_packed_inputs(&mut self, inputs: &[PackedInputType]) {
+        let inputs = inputs
+            .iter()
+            .cloned()
+            .flat_map(Unpack::unpack)
+            .collect_vec();
+        self.add_inputs(&inputs);
     }
 
-    pub fn add_inputs(&self, inputs: &[InputType]) {
-        for input in inputs {
-            self.add_input(input);
-        }
+    pub fn add_inputs(&mut self, inputs: &[InputType]) {
+        self.inputs.extend(inputs);
     }
 }
 
