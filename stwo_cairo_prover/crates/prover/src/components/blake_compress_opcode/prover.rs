@@ -161,7 +161,7 @@ fn write_trace_simd(
         .zip(inputs.into_par_iter())
         .zip(lookup_data.par_iter_mut())
         .for_each(
-            |(((row_index, row), blake_compress_opcode_input), lookup_data)| {
+            |(((row_index, mut row), blake_compress_opcode_input), lookup_data)| {
                 let seq = Seq::new(log_size).packed_at(row_index);
                 let input_tmp_53f39_0 = blake_compress_opcode_input;
                 let input_pc_col0 = input_tmp_53f39_0.pc;

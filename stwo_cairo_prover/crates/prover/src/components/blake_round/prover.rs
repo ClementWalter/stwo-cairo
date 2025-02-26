@@ -114,7 +114,7 @@ fn write_trace_simd(
         .enumerate()
         .zip(inputs.into_par_iter())
         .zip(lookup_data.par_iter_mut())
-        .for_each(|(((row_index, row), blake_round_input), lookup_data)| {
+        .for_each(|(((row_index, mut row), blake_round_input), lookup_data)| {
             let input_tmp_92ff8_0 = (
                 blake_round_input.0,
                 blake_round_input.1,

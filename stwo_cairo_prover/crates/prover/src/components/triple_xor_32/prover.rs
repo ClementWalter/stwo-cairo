@@ -83,7 +83,7 @@ fn write_trace_simd(
         .enumerate()
         .zip(inputs.into_par_iter())
         .zip(lookup_data.par_iter_mut())
-        .for_each(|(((row_index, row), triple_xor_32_input), lookup_data)| {
+        .for_each(|(((row_index, mut row), triple_xor_32_input), lookup_data)| {
             let input_tmp_298db_0 = [
                 triple_xor_32_input[0],
                 triple_xor_32_input[1],

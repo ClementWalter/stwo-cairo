@@ -108,7 +108,7 @@ fn write_trace_simd(
         .enumerate()
         .zip(inputs.into_par_iter())
         .zip(lookup_data.par_iter_mut())
-        .for_each(|(((row_index, row), blake_g_input), lookup_data)| {
+        .for_each(|(((row_index, mut row), blake_g_input), lookup_data)| {
             let input_tmp_f72c8_0 = [
                 blake_g_input[0],
                 blake_g_input[1],
