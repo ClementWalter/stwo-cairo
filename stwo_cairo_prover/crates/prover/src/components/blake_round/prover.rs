@@ -16,10 +16,6 @@ pub type InputType = (M31, M31, ([UInt32; 16], M31));
 pub type PackedInputType = (PackedM31, PackedM31, ([PackedUInt32; 16], PackedM31));
 const N_TRACE_COLUMNS: usize = 211;
 
-pub fn default_blake_round_input() -> InputType {
-    unsafe { transmute((0, 0, ([0; 16], 1))) }
-}
-
 pub struct ClaimGenerator {
     inputs: Vec<InputType>,
     state: BlakeRound,
@@ -46,7 +42,7 @@ impl ClaimGenerator {
         let n_rows = self.inputs.len();
         let size = std::cmp::max(n_rows.next_power_of_two(), N_LANES);
         let log_size = size.ilog2();
-        self.inputs.resize(size, default_blake_round_input());
+        self.inputs.resize(size, *self.inputs.first().unwrap());
         let packed_inputs = pack_values(&self.inputs);
 
         let (trace, lookup_data) = write_trace_simd(
