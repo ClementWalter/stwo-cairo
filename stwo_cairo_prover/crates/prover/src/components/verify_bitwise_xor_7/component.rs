@@ -1,23 +1,28 @@
 use crate::components::prelude::constraint_eval::*;
 
+pub const BITWISE_XOR_7_N_BITS: u32 = 7;
+pub const BITWISE_XOR_7_LOG_SIZE: u32 = BITWISE_XOR_7_N_BITS * 2;
+
 pub struct Eval {
-    pub claim: Claim,
-    pub verify_bitwise_xor_7_lookup_elements: relations::VerifyBitwiseXor_7,
+    pub verify_bitwise_xor_9_lookup_elements: relations::VerifyBitwiseXor_9,
 }
 
 #[derive(Copy, Clone, Serialize, Deserialize, CairoSerialize)]
-pub struct Claim {
-    pub log_size: u32,
-}
+pub struct Claim {}
 impl Claim {
     pub fn log_sizes(&self) -> TreeVec<Vec<u32>> {
-        let trace_log_sizes = vec![self.log_size; 0];
-        let interaction_log_sizes = vec![self.log_size; SECURE_EXTENSION_DEGREE];
-        TreeVec::new(vec![vec![], trace_log_sizes, interaction_log_sizes])
+        let trace_log_sizes = vec![BITWISE_XOR_7_LOG_SIZE; 1];
+        let interaction_log_sizes = vec![BITWISE_XOR_7_LOG_SIZE; SECURE_EXTENSION_DEGREE];
+        let preprocessed_log_sizes = vec![BITWISE_XOR_7_LOG_SIZE];
+        TreeVec::new(vec![
+            preprocessed_log_sizes,
+            trace_log_sizes,
+            interaction_log_sizes,
+        ])
     }
 
     pub fn mix_into(&self, channel: &mut impl Channel) {
-        channel.mix_u64(self.log_size as u64);
+        channel.mix_u64(BITWISE_XOR_7_LOG_SIZE as u64);
     }
 }
 
@@ -35,24 +40,23 @@ pub type Component = FrameworkComponent<Eval>;
 
 impl FrameworkEval for Eval {
     fn log_size(&self) -> u32 {
-        self.claim.log_size
+        BITWISE_XOR_7_LOG_SIZE
     }
 
     fn max_constraint_log_degree_bound(&self) -> u32 {
         self.log_size() + 1
     }
 
-    #[allow(unused_parens)]
-    #[allow(clippy::double_parens)]
-    #[allow(non_snake_case)]
     fn evaluate<E: EvalAtRow>(&self, mut eval: E) -> E {
-        let bitwisexor = eval.get_preprocessed_column((BitwiseXor::new(7, 0)).id());
-        let bitwisexor = eval.get_preprocessed_column((BitwiseXor::new(7, 1)).id());
-        let bitwisexor = eval.get_preprocessed_column((BitwiseXor::new(7, 2)).id());
+        let xor_a = eval.get_preprocessed_column(BitwiseXor::new(BITWISE_XOR_7_N_BITS, 0).id());
+        let xor_b = eval.get_preprocessed_column(BitwiseXor::new(BITWISE_XOR_7_N_BITS, 1).id());
+        let xor_c = eval.get_preprocessed_column(BitwiseXor::new(BITWISE_XOR_7_N_BITS, 2).id());
+        let multiplicity = eval.next_trace_mask();
+
         eval.add_to_relation(RelationEntry::new(
-            &self.verify_bitwise_xor_7_lookup_elements,
-            -E::EF::one(),
-            &[bitwisexor.clone(), bitwisexor.clone(), bitwisexor.clone()],
+            &self.verify_bitwise_xor_9_lookup_elements,
+            -E::EF::from(multiplicity),
+            &[xor_a, xor_b, xor_c],
         ));
 
         eval.finalize_logup_in_pairs();

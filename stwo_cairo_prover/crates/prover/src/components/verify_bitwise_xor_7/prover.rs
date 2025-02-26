@@ -1,51 +1,40 @@
 #![allow(unused_parens)]
-#![allow(unused_imports)]
-#![allow(dead_code)]
-use super::component::{Claim, InteractionClaim};
+use super::component::{Claim, InteractionClaim, BITWISE_XOR_7_LOG_SIZE, BITWISE_XOR_7_N_BITS};
+use crate::cairo_air::preprocessed::BitwiseXor;
 use crate::components::prelude::proving::*;
 
 pub type InputType = [M31; 3];
-pub type PackedInputType = [PackedM31; 3];
-const N_TRACE_COLUMNS: usize = 0;
+const N_TRACE_COLUMNS: usize = 1;
+const PACKED_LOG_SIZE: u32 = BITWISE_XOR_7_LOG_SIZE - LOG_N_LANES;
 
-#[derive(Default)]
 pub struct ClaimGenerator {
-    pub inputs: Vec<InputType>,
+    pub mults: AtomicMultiplicityColumn,
 }
 impl ClaimGenerator {
-    pub fn new(inputs: Vec<InputType>) -> Self {
-        Self { inputs }
+    #[allow(clippy::new_without_default)]
+    pub fn new() -> Self {
+        Self {
+            mults: AtomicMultiplicityColumn::new(1 << BITWISE_XOR_7_LOG_SIZE),
+        }
     }
 
     pub fn write_trace<MC: MerkleChannel>(
-        mut self,
+        self,
         tree_builder: &mut TreeBuilder<'_, '_, SimdBackend, MC>,
     ) -> (Claim, InteractionClaimGenerator)
     where
         SimdBackend: BackendForChannel<MC>,
     {
-        let n_rows = self.inputs.len();
-        assert_ne!(n_rows, 0);
-        let size = std::cmp::max(n_rows.next_power_of_two(), N_LANES);
-        let log_size = size.ilog2();
-        self.inputs.resize(size, *self.inputs.first().unwrap());
-        let packed_inputs = pack_values(&self.inputs);
-
-        let (trace, lookup_data) = write_trace_simd(n_rows, packed_inputs);
-
+        let mults = self.mults.into_simd_vec();
+        let (trace, lookup_data) = write_trace_simd(mults);
         tree_builder.extend_evals(trace.to_evals());
 
-        (
-            Claim { log_size },
-            InteractionClaimGenerator {
-                log_size,
-                lookup_data,
-            },
-        )
+        (Claim {}, InteractionClaimGenerator { lookup_data })
     }
 
     pub fn add_input(&self, input: &InputType) {
-        unimplemented!("Implement manually");
+        self.mults
+            .increase_at((input[0].0 << BITWISE_XOR_7_N_BITS) + input[1].0);
     }
 
     pub fn add_inputs(&self, inputs: &[InputType]) {
@@ -55,38 +44,67 @@ impl ClaimGenerator {
     }
 }
 
-fn write_trace_simd(
-    n_rows: usize,
-    inputs: Vec<PackedInputType>,
-) -> (ComponentTrace<N_TRACE_COLUMNS>, LookupData) {
-    unimplemented!()
+fn write_trace_simd(mults: Vec<PackedM31>) -> (ComponentTrace<N_TRACE_COLUMNS>, LookupData) {
+    let xor_a_column = BitwiseXor::new(BITWISE_XOR_7_N_BITS, 0);
+    let xor_b_column = BitwiseXor::new(BITWISE_XOR_7_N_BITS, 1);
+    let xor_c_column = BitwiseXor::new(BITWISE_XOR_7_N_BITS, 2);
+    let (mut trace, mut lookup_data) = unsafe {
+        (
+            ComponentTrace::<N_TRACE_COLUMNS>::uninitialized(BITWISE_XOR_7_LOG_SIZE),
+            LookupData::uninitialized(PACKED_LOG_SIZE),
+        )
+    };
+
+    trace
+        .par_iter_mut()
+        .enumerate()
+        .zip(lookup_data.par_iter_mut())
+        .for_each(|((row_index, mut row), lookup_data)| {
+            *row[0] = mults[row_index];
+
+            *lookup_data.bitwise_xor_trios = [
+                xor_a_column.packed_at(row_index),
+                xor_b_column.packed_at(row_index),
+                xor_c_column.packed_at(row_index),
+            ];
+            *lookup_data.mults = mults[row_index];
+        });
+
+    (trace, lookup_data)
 }
 
 #[derive(Uninitialized, IterMut, ParIterMut)]
 struct LookupData {
-    verify_bitwise_xor_7_0: Vec<[PackedM31; 3]>,
+    bitwise_xor_trios: Vec<[PackedM31; 3]>,
+    mults: Vec<PackedM31>,
 }
 
 pub struct InteractionClaimGenerator {
-    log_size: u32,
     lookup_data: LookupData,
 }
 impl InteractionClaimGenerator {
     pub fn write_interaction_trace<MC: MerkleChannel>(
         self,
         tree_builder: &mut TreeBuilder<'_, '_, SimdBackend, MC>,
-        verify_bitwise_xor_7: &relations::VerifyBitwiseXor_7,
+        verify_bitwise_xor_9: &relations::VerifyBitwiseXor_9,
     ) -> InteractionClaim
     where
         SimdBackend: BackendForChannel<MC>,
     {
-        let mut logup_gen = LogupTraceGenerator::new(self.log_size);
+        assert!(self.lookup_data.bitwise_xor_trios.len() == 1 << PACKED_LOG_SIZE);
+        let mut logup_gen = LogupTraceGenerator::new(BITWISE_XOR_7_LOG_SIZE);
 
         // Sum last logup term.
         let mut col_gen = logup_gen.new_col();
-        for (i, values) in self.lookup_data.verify_bitwise_xor_7_0.iter().enumerate() {
-            let denom = verify_bitwise_xor_7.combine(values);
-            col_gen.write_frac(i, -PackedQM31::one(), denom);
+        for (i, (values, mults)) in self
+            .lookup_data
+            .bitwise_xor_trios
+            .iter()
+            .zip(self.lookup_data.mults)
+            .enumerate()
+        {
+            let denom = verify_bitwise_xor_9.combine(values);
+            col_gen.write_frac(i, -PackedQM31::one() * mults, denom);
         }
         col_gen.finalize_col();
 

@@ -27,7 +27,7 @@ impl ClaimGenerator {
         memory_address_to_id_state: &memory_address_to_id::ClaimGenerator,
         memory_id_to_big_state: &memory_id_to_big::ClaimGenerator,
         range_check_7_2_5_state: &range_check_7_2_5::ClaimGenerator,
-        triple_xor_32_state: &triple_xor_32::ClaimGenerator,
+        triple_xor_32_state: &mut triple_xor_32::ClaimGenerator,
         verify_bitwise_xor_8_state: &verify_bitwise_xor_8::ClaimGenerator,
         verify_instruction_state: &verify_instruction::ClaimGenerator,
     ) -> (Claim, InteractionClaimGenerator)
@@ -66,6 +66,11 @@ impl ClaimGenerator {
     }
 }
 
+#[derive(Uninitialized, IterMut, ParIterMut)]
+struct TripleXor32Input {
+    inputs: [Vec<triple_xor_32::PackedInputType>; 8],
+}
+
 #[allow(clippy::useless_conversion)]
 #[allow(unused_variables)]
 #[allow(clippy::double_parens)]
@@ -77,16 +82,17 @@ fn write_trace_simd(
     memory_address_to_id_state: &memory_address_to_id::ClaimGenerator,
     memory_id_to_big_state: &memory_id_to_big::ClaimGenerator,
     range_check_7_2_5_state: &range_check_7_2_5::ClaimGenerator,
-    triple_xor_32_state: &triple_xor_32::ClaimGenerator,
+    triple_xor_32_state: &mut triple_xor_32::ClaimGenerator,
     verify_bitwise_xor_8_state: &verify_bitwise_xor_8::ClaimGenerator,
     verify_instruction_state: &verify_instruction::ClaimGenerator,
 ) -> (ComponentTrace<N_TRACE_COLUMNS>, LookupData) {
     let log_n_packed_rows = inputs.len().ilog2();
     let log_size = log_n_packed_rows + LOG_N_LANES;
-    let (mut trace, mut lookup_data) = unsafe {
+    let (mut trace, mut lookup_data, mut triple_xor_inputs) = unsafe {
         (
             ComponentTrace::<N_TRACE_COLUMNS>::uninitialized(log_size),
             LookupData::uninitialized(log_n_packed_rows),
+            TripleXor32Input::uninitialized(log_n_packed_rows),
         )
     };
 
@@ -160,8 +166,12 @@ fn write_trace_simd(
         .enumerate()
         .zip(inputs.into_par_iter())
         .zip(lookup_data.par_iter_mut())
+        .zip(triple_xor_inputs.par_iter_mut())
         .for_each(
-            |(((row_index, mut row), blake_compress_opcode_input), lookup_data)| {
+            |(
+                (((row_index, mut row), blake_compress_opcode_input), lookup_data),
+                triple_xor_input,
+            )| {
                 let seq = Seq::new(log_size).packed_at(row_index);
                 let input_tmp_53f39_0 = blake_compress_opcode_input;
                 let input_pc_col0 = input_tmp_53f39_0.pc;
@@ -2254,8 +2264,7 @@ fn write_trace_simd(
                     blake_round_output_round_9_tmp_53f39_104.2 .0[0],
                     blake_round_output_round_9_tmp_53f39_104.2 .0[8],
                     expected_word_tmp_53f39_28,
-                ]
-                .unpack();
+                ];
                 let triple_xor_32_output_tmp_53f39_105 = TripleXor32::deduce_output([
                     blake_round_output_round_9_tmp_53f39_104.2 .0[0],
                     blake_round_output_round_9_tmp_53f39_104.2 .0[8],
@@ -2281,8 +2290,7 @@ fn write_trace_simd(
                     blake_round_output_round_9_tmp_53f39_104.2 .0[1],
                     blake_round_output_round_9_tmp_53f39_104.2 .0[9],
                     expected_word_tmp_53f39_36,
-                ]
-                .unpack();
+                ];
                 let triple_xor_32_output_tmp_53f39_106 = TripleXor32::deduce_output([
                     blake_round_output_round_9_tmp_53f39_104.2 .0[1],
                     blake_round_output_round_9_tmp_53f39_104.2 .0[9],
@@ -2308,8 +2316,7 @@ fn write_trace_simd(
                     blake_round_output_round_9_tmp_53f39_104.2 .0[2],
                     blake_round_output_round_9_tmp_53f39_104.2 .0[10],
                     expected_word_tmp_53f39_44,
-                ]
-                .unpack();
+                ];
                 let triple_xor_32_output_tmp_53f39_107 = TripleXor32::deduce_output([
                     blake_round_output_round_9_tmp_53f39_104.2 .0[2],
                     blake_round_output_round_9_tmp_53f39_104.2 .0[10],
@@ -2335,8 +2342,7 @@ fn write_trace_simd(
                     blake_round_output_round_9_tmp_53f39_104.2 .0[3],
                     blake_round_output_round_9_tmp_53f39_104.2 .0[11],
                     expected_word_tmp_53f39_52,
-                ]
-                .unpack();
+                ];
                 let triple_xor_32_output_tmp_53f39_108 = TripleXor32::deduce_output([
                     blake_round_output_round_9_tmp_53f39_104.2 .0[3],
                     blake_round_output_round_9_tmp_53f39_104.2 .0[11],
@@ -2362,8 +2368,7 @@ fn write_trace_simd(
                     blake_round_output_round_9_tmp_53f39_104.2 .0[4],
                     blake_round_output_round_9_tmp_53f39_104.2 .0[12],
                     expected_word_tmp_53f39_60,
-                ]
-                .unpack();
+                ];
                 let triple_xor_32_output_tmp_53f39_109 = TripleXor32::deduce_output([
                     blake_round_output_round_9_tmp_53f39_104.2 .0[4],
                     blake_round_output_round_9_tmp_53f39_104.2 .0[12],
@@ -2389,8 +2394,7 @@ fn write_trace_simd(
                     blake_round_output_round_9_tmp_53f39_104.2 .0[5],
                     blake_round_output_round_9_tmp_53f39_104.2 .0[13],
                     expected_word_tmp_53f39_68,
-                ]
-                .unpack();
+                ];
                 let triple_xor_32_output_tmp_53f39_110 = TripleXor32::deduce_output([
                     blake_round_output_round_9_tmp_53f39_104.2 .0[5],
                     blake_round_output_round_9_tmp_53f39_104.2 .0[13],
@@ -2416,8 +2420,7 @@ fn write_trace_simd(
                     blake_round_output_round_9_tmp_53f39_104.2 .0[6],
                     blake_round_output_round_9_tmp_53f39_104.2 .0[14],
                     expected_word_tmp_53f39_76,
-                ]
-                .unpack();
+                ];
                 let triple_xor_32_output_tmp_53f39_111 = TripleXor32::deduce_output([
                     blake_round_output_round_9_tmp_53f39_104.2 .0[6],
                     blake_round_output_round_9_tmp_53f39_104.2 .0[14],
@@ -2443,8 +2446,7 @@ fn write_trace_simd(
                     blake_round_output_round_9_tmp_53f39_104.2 .0[7],
                     blake_round_output_round_9_tmp_53f39_104.2 .0[15],
                     expected_word_tmp_53f39_84,
-                ]
-                .unpack();
+                ];
                 let triple_xor_32_output_tmp_53f39_112 = TripleXor32::deduce_output([
                     blake_round_output_round_9_tmp_53f39_104.2 .0[7],
                     blake_round_output_round_9_tmp_53f39_104.2 .0[15],
@@ -3180,14 +3182,14 @@ fn write_trace_simd(
                 blake_round_state.add_inputs(&blake_round_inputs_7);
                 blake_round_state.add_inputs(&blake_round_inputs_8);
                 blake_round_state.add_inputs(&blake_round_inputs_9);
-                triple_xor_32_state.add_inputs(&triple_xor_32_inputs_0);
-                triple_xor_32_state.add_inputs(&triple_xor_32_inputs_1);
-                triple_xor_32_state.add_inputs(&triple_xor_32_inputs_2);
-                triple_xor_32_state.add_inputs(&triple_xor_32_inputs_3);
-                triple_xor_32_state.add_inputs(&triple_xor_32_inputs_4);
-                triple_xor_32_state.add_inputs(&triple_xor_32_inputs_5);
-                triple_xor_32_state.add_inputs(&triple_xor_32_inputs_6);
-                triple_xor_32_state.add_inputs(&triple_xor_32_inputs_7);
+                *triple_xor_input.inputs[0] = triple_xor_32_inputs_0;
+                *triple_xor_input.inputs[1] = triple_xor_32_inputs_1;
+                *triple_xor_input.inputs[2] = triple_xor_32_inputs_2;
+                *triple_xor_input.inputs[3] = triple_xor_32_inputs_3;
+                *triple_xor_input.inputs[4] = triple_xor_32_inputs_4;
+                *triple_xor_input.inputs[5] = triple_xor_32_inputs_5;
+                *triple_xor_input.inputs[6] = triple_xor_32_inputs_6;
+                *triple_xor_input.inputs[7] = triple_xor_32_inputs_7;
                 range_check_7_2_5_state.add_inputs(&range_check_7_2_5_inputs_9);
                 memory_address_to_id_state.add_inputs(&memory_address_to_id_inputs_12);
                 memory_id_to_big_state.add_inputs(&memory_id_to_big_inputs_12);
@@ -3214,6 +3216,15 @@ fn write_trace_simd(
                 memory_id_to_big_state.add_inputs(&memory_id_to_big_inputs_19);
             },
         );
+
+    triple_xor_32_state.add_packed_inputs(&triple_xor_inputs.inputs[0]);
+    triple_xor_32_state.add_packed_inputs(&triple_xor_inputs.inputs[1]);
+    triple_xor_32_state.add_packed_inputs(&triple_xor_inputs.inputs[2]);
+    triple_xor_32_state.add_packed_inputs(&triple_xor_inputs.inputs[3]);
+    triple_xor_32_state.add_packed_inputs(&triple_xor_inputs.inputs[4]);
+    triple_xor_32_state.add_packed_inputs(&triple_xor_inputs.inputs[5]);
+    triple_xor_32_state.add_packed_inputs(&triple_xor_inputs.inputs[6]);
+    triple_xor_32_state.add_packed_inputs(&triple_xor_inputs.inputs[7]);
 
     (trace, lookup_data)
 }
