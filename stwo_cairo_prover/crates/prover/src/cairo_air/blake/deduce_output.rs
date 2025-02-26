@@ -161,7 +161,7 @@ impl BlakeRound {
 
         let message: [_; N_LANES] = array::from_fn(|i| {
             u32x16::from(array::from_fn(|j| {
-                self.memory.get(message_pointer[i] + sigma[i][j]).as_small() as u32
+                self.memory.get(message_pointer[j] + sigma[i][j]).as_small() as u32
             }))
         });
 

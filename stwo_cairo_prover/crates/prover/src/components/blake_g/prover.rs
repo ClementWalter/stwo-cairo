@@ -13,6 +13,10 @@ pub type InputType = [UInt32; 6];
 pub type PackedInputType = [PackedUInt32; 6];
 const N_TRACE_COLUMNS: usize = 52;
 
+pub fn default_blake_g_input() -> InputType {
+    Default::default()
+}
+
 #[derive(Default)]
 pub struct ClaimGenerator {
     pub inputs: Vec<InputType>,
@@ -35,10 +39,9 @@ impl ClaimGenerator {
         SimdBackend: BackendForChannel<MC>,
     {
         let n_rows = self.inputs.len();
-        assert_ne!(n_rows, 0);
         let size = std::cmp::max(n_rows.next_power_of_two(), N_LANES);
         let log_size = size.ilog2();
-        self.inputs.resize(size, *self.inputs.first().unwrap());
+        self.inputs.resize(size, default_blake_g_input());
         let packed_inputs = pack_values(&self.inputs);
 
         let (trace, lookup_data) = write_trace_simd(
