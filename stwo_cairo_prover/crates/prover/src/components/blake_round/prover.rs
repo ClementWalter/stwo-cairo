@@ -3,6 +3,7 @@
 use itertools::Itertools;
 
 use super::component::{Claim, InteractionClaim};
+use crate::cairo_air::blake::deduce_output::BlakeRoundSigma;
 use crate::components::prelude::proving::*;
 use crate::components::{
     blake_g, blake_round_sigma, memory_address_to_id, memory_id_to_big, range_check_7_2_5,
@@ -224,7 +225,7 @@ fn write_trace_simd(
                 *row[34] = input_limb_34_col34;
                 let blake_round_sigma_inputs_0 = [input_limb_1_col1].unpack();
                 let blake_round_sigma_output_tmp_92ff8_1 =
-                    blake_round_sigma_state.deduce_output([input_limb_1_col1]);
+                    BlakeRoundSigma::deduce_output(input_limb_1_col1);
                 let blake_round_sigma_output_limb_0_col35 = blake_round_sigma_output_tmp_92ff8_1[0];
                 *row[35] = blake_round_sigma_output_limb_0_col35;
                 let blake_round_sigma_output_limb_1_col36 = blake_round_sigma_output_tmp_92ff8_1[1];

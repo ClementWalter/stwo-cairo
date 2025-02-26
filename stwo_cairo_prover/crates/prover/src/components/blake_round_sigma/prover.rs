@@ -1,20 +1,31 @@
 #![allow(unused_parens)]
 #![allow(unused_imports)]
 #![allow(dead_code)]
+use std::simd::u32x16;
+
+use itertools::{chain, Itertools};
+use stwo_prover::core::backend::simd::column::BaseColumn;
+use stwo_prover::core::poly::circle::{CanonicCoset, CircleEvaluation};
+use stwo_prover::core::poly::BitReversedOrder;
+
 use super::component::{Claim, InteractionClaim};
+use crate::cairo_air::blake::deduce_output::BlakeRoundSigma;
 use crate::components::prelude::proving::*;
+use crate::components::range_check_vector::SIMD_ENUMERATION_0;
 
 pub type InputType = [M31; 1];
 pub type PackedInputType = [PackedM31; 1];
 const N_TRACE_COLUMNS: usize = 0;
 
-#[derive(Default)]
 pub struct ClaimGenerator {
-    pub inputs: Vec<InputType>,
+    pub mults: AtomicMultiplicityColumn,
 }
 impl ClaimGenerator {
-    pub fn new(inputs: Vec<InputType>) -> Self {
-        Self { inputs }
+    #[allow(clippy::new_without_default)]
+    pub fn new() -> Self {
+        Self {
+            mults: AtomicMultiplicityColumn::new(1 << 4),
+        }
     }
 
     pub fn write_trace<MC: MerkleChannel>(
@@ -24,28 +35,27 @@ impl ClaimGenerator {
     where
         SimdBackend: BackendForChannel<MC>,
     {
-        let n_rows = self.inputs.len();
-        assert_ne!(n_rows, 0);
-        let size = std::cmp::max(n_rows.next_power_of_two(), N_LANES);
-        let log_size = size.ilog2();
-        self.inputs.resize(size, *self.inputs.first().unwrap());
-        let packed_inputs = pack_values(&self.inputs);
+        let multiplicity_data = self.mults.into_simd_vec();
+        let multiplicity_column = BaseColumn::from_simd(multiplicity_data.clone());
 
-        let (trace, lookup_data) = write_trace_simd(n_rows, packed_inputs);
+        let domain = CanonicCoset::new(4).circle_domain();
+        let trace = [multiplicity_column]
+            .map(|col| CircleEvaluation::<SimdBackend, M31, BitReversedOrder>::new(domain, col));
 
-        tree_builder.extend_evals(trace.to_evals());
+        tree_builder.extend_evals(trace);
 
-        (
-            Claim { log_size },
-            InteractionClaimGenerator {
-                log_size,
-                lookup_data,
-            },
-        )
+        let claim = Claim {};
+
+        let lookup_data = LookupData {
+            multiplicities: multiplicity_data,
+        };
+        let interaction_claim_prover = InteractionClaimGenerator { lookup_data };
+
+        (claim, interaction_claim_prover)
     }
 
     pub fn add_input(&self, input: &InputType) {
-        unimplemented!("Implement manually");
+        self.mults.increase_at(input[0].0);
     }
 
     pub fn add_inputs(&self, inputs: &[InputType]) {
@@ -53,26 +63,14 @@ impl ClaimGenerator {
             self.add_input(input);
         }
     }
-
-    pub fn deduce_output(&self, _s: [PackedM31; 1]) -> [PackedM31; 16] {
-        unimplemented!("Implement manually");
-    }
-}
-
-fn write_trace_simd(
-    n_rows: usize,
-    inputs: Vec<PackedInputType>,
-) -> (ComponentTrace<N_TRACE_COLUMNS>, LookupData) {
-    unimplemented!()
 }
 
 #[derive(Uninitialized, IterMut, ParIterMut)]
 struct LookupData {
-    blake_round_sigma_0: Vec<[PackedM31; 17]>,
+    multiplicities: Vec<PackedM31>,
 }
 
 pub struct InteractionClaimGenerator {
-    log_size: u32,
     lookup_data: LookupData,
 }
 impl InteractionClaimGenerator {
@@ -84,14 +82,23 @@ impl InteractionClaimGenerator {
     where
         SimdBackend: BackendForChannel<MC>,
     {
-        let mut logup_gen = LogupTraceGenerator::new(self.log_size);
+        let mut logup_gen = LogupTraceGenerator::new(4);
+        assert_eq!(self.lookup_data.multiplicities.len(), 1);
+        let mult = <_ as Into<PackedQM31>>::into(-self.lookup_data.multiplicities[0]);
+        let sigmas = BlakeRoundSigma::deduce_output(unsafe {
+            PackedM31::from_simd_unchecked(u32x16::from_array([
+                0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 0, 0, 0, 0, 0,
+            ]))
+        });
+        let seq = unsafe { PackedM31::from_simd_unchecked(SIMD_ENUMERATION_0) };
 
         // Sum last logup term.
         let mut col_gen = logup_gen.new_col();
-        for (i, values) in self.lookup_data.blake_round_sigma_0.iter().enumerate() {
-            let denom = blake_round_sigma.combine(values);
-            col_gen.write_frac(i, -PackedQM31::one(), denom);
-        }
+        let values = chain![[seq], sigmas].collect_vec();
+        let denom = blake_round_sigma.combine(&values);
+
+        col_gen.write_frac(0, -mult, denom);
+
         col_gen.finalize_col();
 
         let (trace, claimed_sum) = logup_gen.finalize_last();
