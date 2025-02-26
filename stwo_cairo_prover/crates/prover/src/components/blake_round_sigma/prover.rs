@@ -29,7 +29,7 @@ impl ClaimGenerator {
     }
 
     pub fn write_trace<MC: MerkleChannel>(
-        mut self,
+        self,
         tree_builder: &mut TreeBuilder<'_, '_, SimdBackend, MC>,
     ) -> (Claim, InteractionClaimGenerator)
     where
@@ -87,7 +87,7 @@ impl InteractionClaimGenerator {
         let mult = <_ as Into<PackedQM31>>::into(-self.lookup_data.multiplicities[0]);
         let sigmas = BlakeRoundSigma::deduce_output(unsafe {
             PackedM31::from_simd_unchecked(u32x16::from_array([
-                0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 0, 0, 0, 0, 0,
+                0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 0, 0, 0, 0, 0,
             ]))
         });
         let seq = unsafe { PackedM31::from_simd_unchecked(SIMD_ENUMERATION_0) };

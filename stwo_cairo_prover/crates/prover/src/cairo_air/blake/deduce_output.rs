@@ -117,14 +117,18 @@ impl BlakeRoundSigma {
     }
 }
 
-pub struct BlakeRound<'a> {
-    memory: &'a Memory,
+pub struct BlakeRound {
+    memory: Memory,
 }
 
 // TODO(Stav): remove '#[allow(unused)]' when possible.
 #[allow(unused)]
-impl BlakeRound<'_> {
-    fn deduce_output(
+impl BlakeRound {
+    pub fn new(memory: Memory) -> Self {
+        Self { memory }
+    }
+
+    pub fn deduce_output(
         &self,
         chain: PackedM31,
         round: PackedM31,
@@ -254,7 +258,9 @@ mod tests {
             (expected_state.map(UInt32::from), M31::from(message_pointer)),
         );
 
-        let blake_round = BlakeRound { memory: &memory };
+        let blake_round = BlakeRound {
+            memory: memory.build(),
+        };
         let actual = blake_round
             .deduce_output(
                 PackedM31::broadcast(M31::from(0)),

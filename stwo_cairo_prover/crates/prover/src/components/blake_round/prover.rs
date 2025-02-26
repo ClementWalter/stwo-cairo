@@ -1,9 +1,12 @@
 #![allow(unused_parens)]
 #![allow(unused_imports)]
+use std::mem::transmute;
+
 use itertools::Itertools;
+use stwo_cairo_adapter::memory::Memory;
 
 use super::component::{Claim, InteractionClaim};
-use crate::cairo_air::blake::deduce_output::BlakeRoundSigma;
+use crate::cairo_air::blake::deduce_output::{BlakeRound, BlakeRoundSigma};
 use crate::components::prelude::proving::*;
 use crate::components::{
     blake_g, blake_round_sigma, memory_address_to_id, memory_id_to_big, range_check_7_2_5,
@@ -13,13 +16,15 @@ pub type InputType = (M31, M31, ([UInt32; 16], M31));
 pub type PackedInputType = (PackedM31, PackedM31, ([PackedUInt32; 16], PackedM31));
 const N_TRACE_COLUMNS: usize = 211;
 
-#[derive(Default)]
 pub struct ClaimGenerator {
-    pub inputs: Vec<InputType>,
+    inputs: Vec<InputType>,
+    state: BlakeRound,
 }
 impl ClaimGenerator {
-    pub fn new() -> Self {
-        Self { inputs: vec![] }
+    pub fn new(memory: Memory) -> Self {
+        let inputs = vec![];
+        let state = BlakeRound::new(memory);
+        Self { inputs, state }
     }
 
     pub fn write_trace<MC: MerkleChannel>(
@@ -61,6 +66,7 @@ impl ClaimGenerator {
             },
         )
     }
+
     pub fn add_packed_inputs(&mut self, inputs: &[PackedInputType]) {
         let inputs = inputs
             .iter()
@@ -78,7 +84,7 @@ impl ClaimGenerator {
         &self,
         input: (PackedM31, PackedM31, ([PackedUInt32; 16], PackedM31)),
     ) -> (PackedM31, PackedM31, ([PackedUInt32; 16], PackedM31)) {
-        todo!()
+        self.state.deduce_output(input.0, input.1, input.2)
     }
 }
 

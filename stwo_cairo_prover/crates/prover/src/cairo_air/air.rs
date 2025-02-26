@@ -34,7 +34,11 @@ use super::range_checks_air::{
 };
 use crate::cairo_air::relations;
 use crate::components::memory::{memory_address_to_id, memory_id_to_big};
-use crate::components::{verify_bitwise_xor_9, verify_instruction};
+use crate::components::{
+    blake_g, blake_round, blake_round_sigma, triple_xor_32, verify_bitwise_xor_12,
+    verify_bitwise_xor_4, verify_bitwise_xor_7, verify_bitwise_xor_8, verify_bitwise_xor_9,
+    verify_instruction,
+};
 use crate::felt::split_f252;
 
 #[derive(Serialize, Deserialize)]
@@ -68,11 +72,19 @@ pub struct CairoClaim {
     pub public_data: PublicData,
     pub opcodes: OpcodeClaim,
     pub verify_instruction: verify_instruction::Claim,
+    pub blake_round: blake_round::Claim,
+    pub blake_g: blake_g::Claim,
+    pub blake_sigma: blake_round_sigma::Claim,
+    pub triple_xor_32: triple_xor_32::Claim,
     pub builtins: BuiltinsClaim,
     pub memory_address_to_id: memory_address_to_id::Claim,
     pub memory_id_to_value: memory_id_to_big::Claim,
     pub range_checks: RangeChecksClaim,
+    pub verify_bitwise_xor_4: verify_bitwise_xor_4::Claim,
+    pub verify_bitwise_xor_7: verify_bitwise_xor_7::Claim,
+    pub verify_bitwise_xor_8: verify_bitwise_xor_8::Claim,
     pub verify_bitwise_xor_9: verify_bitwise_xor_9::Claim,
+    pub verify_bitwise_xor_12: verify_bitwise_xor_12::Claim,
     // ...
 }
 
@@ -92,11 +104,19 @@ impl CairoClaim {
         let log_sizes_list = vec![
             self.opcodes.log_sizes(),
             self.verify_instruction.log_sizes(),
+            self.blake_round.log_sizes(),
+            self.blake_g.log_sizes(),
+            self.blake_sigma.log_sizes(),
+            self.triple_xor_32.log_sizes(),
             self.builtins.log_sizes(),
             self.memory_address_to_id.log_sizes(),
             self.memory_id_to_value.log_sizes(),
             self.range_checks.log_sizes(),
+            self.verify_bitwise_xor_4.log_sizes(),
+            self.verify_bitwise_xor_7.log_sizes(),
+            self.verify_bitwise_xor_8.log_sizes(),
             self.verify_bitwise_xor_9.log_sizes(),
+            self.verify_bitwise_xor_12.log_sizes(),
         ];
 
         let mut log_sizes = TreeVec::concat_cols(log_sizes_list.into_iter());
@@ -162,10 +182,18 @@ pub struct CairoClaimGenerator {
     // Internal components.
     verify_instruction_trace_generator: verify_instruction::ClaimGenerator,
     builtins: BuiltinsClaimGenerator,
+    blake_round_trace_generator: blake_round::ClaimGenerator,
+    blake_g_trace_generator: blake_g::ClaimGenerator,
+    blake_sigma_trace_generator: blake_round_sigma::ClaimGenerator,
     memory_address_to_id_trace_generator: memory_address_to_id::ClaimGenerator,
     memory_id_to_value_trace_generator: memory_id_to_big::ClaimGenerator,
     range_checks_trace_generator: RangeChecksClaimGenerator,
+    triple_xor_32_trace_generator: triple_xor_32::ClaimGenerator,
+    verify_bitwise_xor_4_trace_generator: verify_bitwise_xor_4::ClaimGenerator,
+    verify_bitwise_xor_7_trace_generator: verify_bitwise_xor_7::ClaimGenerator,
+    verify_bitwise_xor_8_trace_generator: verify_bitwise_xor_8::ClaimGenerator,
     verify_bitwise_xor_9_trace_generator: verify_bitwise_xor_9::ClaimGenerator,
+    verify_bitwise_xor_12_trace_generator: verify_bitwise_xor_12::ClaimGenerator,
     // ...
 }
 impl CairoClaimGenerator {
@@ -173,6 +201,8 @@ impl CairoClaimGenerator {
         let initial_state = input.state_transitions.initial_state;
         let final_state = input.state_transitions.final_state;
         let opcodes = OpcodesClaimGenerator::new(input.state_transitions);
+        let blake_g_trace_generator = blake_g::ClaimGenerator::new();
+        let blake_sigma_trace_generator = blake_round_sigma::ClaimGenerator::new();
         let verify_instruction_trace_generator =
             verify_instruction::ClaimGenerator::new(input.instruction_by_pc);
         let builtins = BuiltinsClaimGenerator::new(input.builtins_segments);
@@ -181,6 +211,7 @@ impl CairoClaimGenerator {
         let memory_id_to_value_trace_generator =
             memory_id_to_big::ClaimGenerator::new(&input.memory);
         let range_checks_trace_generator = RangeChecksClaimGenerator::new();
+        let triple_xor_32_trace_generator = triple_xor_32::ClaimGenerator::new();
         let verify_bitwise_xor_9_trace_generator = verify_bitwise_xor_9::ClaimGenerator::new();
 
         // Yield public memory.
@@ -211,20 +242,30 @@ impl CairoClaimGenerator {
             final_state,
         };
 
+        let blake_round_trace_generator = blake_round::ClaimGenerator::new(input.memory);
+        
         Self {
             public_data,
             opcodes,
             verify_instruction_trace_generator,
             builtins,
+            blake_round_trace_generator,
+            blake_g_trace_generator,
+            blake_sigma_trace_generator,
             memory_address_to_id_trace_generator,
             memory_id_to_value_trace_generator,
             range_checks_trace_generator,
             verify_bitwise_xor_9_trace_generator,
+            verify_bitwise_xor_4_trace_generator: verify_bitwise_xor_4::ClaimGenerator::new(),
+            verify_bitwise_xor_7_trace_generator: verify_bitwise_xor_7::ClaimGenerator::new(),
+            verify_bitwise_xor_8_trace_generator: verify_bitwise_xor_8::ClaimGenerator::new(),
+            verify_bitwise_xor_12_trace_generator: verify_bitwise_xor_12::ClaimGenerator::new(),
+            triple_xor_32_trace_generator,
         }
     }
 
     pub fn write_trace<MC: MerkleChannel>(
-        self,
+        mut self,
         tree_builder: &mut TreeBuilder<'_, '_, SimdBackend, MC>,
     ) -> (CairoClaim, CairoInteractionClaimGenerator)
     where
@@ -233,12 +274,16 @@ impl CairoClaimGenerator {
         let span = span!(Level::INFO, "write opcode trace").entered();
         let (opcodes_claim, opcodes_interaction_gen) = self.opcodes.write_trace(
             tree_builder,
+            &mut self.blake_round_trace_generator,
             &self.memory_address_to_id_trace_generator,
             &self.memory_id_to_value_trace_generator,
             &self.range_checks_trace_generator.rc_11_trace_generator,
             &self.range_checks_trace_generator.rc_19_trace_generator,
             &self.range_checks_trace_generator.rc_9_9_trace_generator,
+            &self.range_checks_trace_generator.rc_7_2_5_trace_generator,
+            &mut self.triple_xor_32_trace_generator,
             &self.verify_instruction_trace_generator,
+            &mut self.verify_bitwise_xor_8_trace_generator,
         );
         span.exit();
         let span = span!(Level::INFO, "internal component trace").entered();
@@ -250,6 +295,28 @@ impl CairoClaimGenerator {
                 &self.range_checks_trace_generator.rc_4_3_trace_generator,
                 &self.range_checks_trace_generator.rc_7_2_5_trace_generator,
             );
+        let (blake_round_claim, blake_round_interaction_gen) =
+            self.blake_round_trace_generator.write_trace(
+                tree_builder,
+                &mut self.blake_g_trace_generator,
+                &self.blake_sigma_trace_generator,
+                &self.memory_address_to_id_trace_generator,
+                &self.memory_id_to_value_trace_generator,
+                &self.range_checks_trace_generator.rc_7_2_5_trace_generator,
+            );
+        let (blake_g_claim, blake_g_interaction_gen) = self.blake_g_trace_generator.write_trace(
+            tree_builder,
+            &self.verify_bitwise_xor_12_trace_generator,
+            &self.verify_bitwise_xor_4_trace_generator,
+            &self.verify_bitwise_xor_7_trace_generator,
+            &self.verify_bitwise_xor_8_trace_generator,
+            &self.verify_bitwise_xor_9_trace_generator,
+        );
+        let (blake_sigma_claim, blake_sigma_interaction_gen) =
+            self.blake_sigma_trace_generator.write_trace(tree_builder);
+        let (triple_xor_32_claim, triple_xor_32_interaction_gen) = self
+            .triple_xor_32_trace_generator
+            .write_trace(tree_builder, &self.verify_bitwise_xor_8_trace_generator);
         let (builtins_claim, builtins_interaction_gen) = self.builtins.write_trace(
             tree_builder,
             &self.memory_address_to_id_trace_generator,
@@ -267,8 +334,20 @@ impl CairoClaimGenerator {
             );
         let (range_checks_claim, range_checks_interaction_gen) =
             self.range_checks_trace_generator.write_trace(tree_builder);
+        let (verify_bitwise_xor_4_claim, verify_bitwise_xor_4_interaction_gen) = self
+            .verify_bitwise_xor_4_trace_generator
+            .write_trace(tree_builder);
+        let (verify_bitwise_xor_7_claim, verify_bitwise_xor_7_interaction_gen) = self
+            .verify_bitwise_xor_7_trace_generator
+            .write_trace(tree_builder);
+        let (verify_bitwise_xor_8_claim, verify_bitwise_xor_8_interaction_gen) = self
+            .verify_bitwise_xor_8_trace_generator
+            .write_trace(tree_builder);
         let (verify_bitwise_xor_9_claim, verify_bitwise_xor_9_interaction_gen) = self
             .verify_bitwise_xor_9_trace_generator
+            .write_trace(tree_builder);
+        let (verify_bitwise_xor_12_claim, verify_bitwise_xor_12_interaction_gen) = self
+            .verify_bitwise_xor_12_trace_generator
             .write_trace(tree_builder);
         span.exit();
         (
@@ -276,20 +355,36 @@ impl CairoClaimGenerator {
                 public_data: self.public_data,
                 opcodes: opcodes_claim,
                 verify_instruction: verify_instruction_claim,
+                blake_round: blake_round_claim,
+                blake_g: blake_g_claim,
+                blake_sigma: blake_sigma_claim,
+                triple_xor_32: triple_xor_32_claim,
                 builtins: builtins_claim,
                 memory_address_to_id: memory_address_to_id_claim,
                 memory_id_to_value: memory_id_to_value_claim,
                 range_checks: range_checks_claim,
+                verify_bitwise_xor_4: verify_bitwise_xor_4_claim,
+                verify_bitwise_xor_7: verify_bitwise_xor_7_claim,
+                verify_bitwise_xor_8: verify_bitwise_xor_8_claim,
                 verify_bitwise_xor_9: verify_bitwise_xor_9_claim,
+                verify_bitwise_xor_12: verify_bitwise_xor_12_claim,
             },
             CairoInteractionClaimGenerator {
                 opcodes_interaction_gen,
+                blake_round_interaction_gen,
+                blake_g_interaction_gen,
+                blake_sigma_interaction_gen,
+                triple_xor_32_interaction_gen,
                 verify_instruction_interaction_gen,
                 builtins_interaction_gen,
                 memory_address_to_id_interaction_gen,
                 memory_id_to_value_interaction_gen,
                 range_checks_interaction_gen,
+                verify_bitwise_xor_4_interaction_gen,
+                verify_bitwise_xor_7_interaction_gen,
+                verify_bitwise_xor_8_interaction_gen,
                 verify_bitwise_xor_9_interaction_gen,
+                verify_bitwise_xor_12_interaction_gen,
             },
         )
     }
@@ -297,12 +392,20 @@ impl CairoClaimGenerator {
 
 pub struct CairoInteractionClaimGenerator {
     opcodes_interaction_gen: OpcodesInteractionClaimGenerator,
+    blake_round_interaction_gen: blake_round::InteractionClaimGenerator,
+    blake_g_interaction_gen: blake_g::InteractionClaimGenerator,
+    blake_sigma_interaction_gen: blake_round_sigma::InteractionClaimGenerator,
+    triple_xor_32_interaction_gen: triple_xor_32::InteractionClaimGenerator,
     verify_instruction_interaction_gen: verify_instruction::InteractionClaimGenerator,
     builtins_interaction_gen: BuiltinsInteractionClaimGenerator,
     memory_address_to_id_interaction_gen: memory_address_to_id::InteractionClaimGenerator,
     memory_id_to_value_interaction_gen: memory_id_to_big::InteractionClaimGenerator,
     range_checks_interaction_gen: RangeChecksInteractionClaimGenerator,
+    verify_bitwise_xor_4_interaction_gen: verify_bitwise_xor_4::InteractionClaimGenerator,
+    verify_bitwise_xor_7_interaction_gen: verify_bitwise_xor_7::InteractionClaimGenerator,
+    verify_bitwise_xor_8_interaction_gen: verify_bitwise_xor_8::InteractionClaimGenerator,
     verify_bitwise_xor_9_interaction_gen: verify_bitwise_xor_9::InteractionClaimGenerator,
+    verify_bitwise_xor_12_interaction_gen: verify_bitwise_xor_12::InteractionClaimGenerator,
     // ...
 }
 impl CairoInteractionClaimGenerator {
@@ -327,6 +430,34 @@ impl CairoInteractionClaimGenerator {
                 &interaction_elements.range_checks.rc_7_2_5,
                 &interaction_elements.verify_instruction,
             );
+        let blake_round_interaction_claim =
+            self.blake_round_interaction_gen.write_interaction_trace(
+                tree_builder,
+                &interaction_elements.blake_g,
+                &interaction_elements.blake_round,
+                &interaction_elements.blake_sigma,
+                &interaction_elements.memory_address_to_id,
+                &interaction_elements.memory_id_to_value,
+                &interaction_elements.range_checks.rc_7_2_5,
+            );
+        let blake_g_interaction_claim = self.blake_g_interaction_gen.write_interaction_trace(
+            tree_builder,
+            &interaction_elements.blake_g,
+            &interaction_elements.verify_bitwise_xor_12,
+            &interaction_elements.verify_bitwise_xor_4,
+            &interaction_elements.verify_bitwise_xor_7,
+            &interaction_elements.verify_bitwise_xor_8,
+            &interaction_elements.verify_bitwise_xor_9,
+        );
+        let blake_sigma_interaction_claim = self
+            .blake_sigma_interaction_gen
+            .write_interaction_trace(tree_builder, &interaction_elements.blake_sigma);
+        let triple_xor_32_interaction_claim =
+            self.triple_xor_32_interaction_gen.write_interaction_trace(
+                tree_builder,
+                &interaction_elements.triple_xor_32,
+                &interaction_elements.verify_bitwise_xor_8,
+            );
         let builtins_interaction_claims = self
             .builtins_interaction_gen
             .write_interaction_trace(tree_builder, interaction_elements);
@@ -344,24 +475,52 @@ impl CairoInteractionClaimGenerator {
         let range_checks_interaction_claim = self
             .range_checks_interaction_gen
             .write_interaction_trace(tree_builder, &interaction_elements.range_checks);
+        let verify_bitwise_xor_4_interaction_claim = self
+            .verify_bitwise_xor_4_interaction_gen
+            .write_interaction_trace(tree_builder, &interaction_elements.verify_bitwise_xor_4);
+        let verify_bitwise_xor_7_interaction_claim = self
+            .verify_bitwise_xor_7_interaction_gen
+            .write_interaction_trace(tree_builder, &interaction_elements.verify_bitwise_xor_7);
+        let verify_bitwise_xor_8_interaction_claim = self
+            .verify_bitwise_xor_8_interaction_gen
+            .write_interaction_trace(tree_builder, &interaction_elements.verify_bitwise_xor_8);
         let verify_bitwise_xor_9_interaction_claim = self
             .verify_bitwise_xor_9_interaction_gen
             .write_interaction_trace(tree_builder, &interaction_elements.verify_bitwise_xor_9);
+        let verify_bitwise_xor_12_interaction_claim = self
+            .verify_bitwise_xor_12_interaction_gen
+            .write_interaction_trace(tree_builder, &interaction_elements.verify_bitwise_xor_12);
 
         CairoInteractionClaim {
             opcodes: opcodes_interaction_claims,
             verify_instruction: verify_instruction_interaction_claim,
+            blake_round: blake_round_interaction_claim,
+            blake_g: blake_g_interaction_claim,
+            blake_sigma: blake_sigma_interaction_claim,
+            triple_xor_32: triple_xor_32_interaction_claim,
             builtins: builtins_interaction_claims,
             memory_address_to_id: memory_address_to_id_interaction_claim,
             memory_id_to_value: memory_id_to_value_interaction_claim,
             range_checks: range_checks_interaction_claim,
+            verify_bitwise_xor_4: verify_bitwise_xor_4_interaction_claim,
+            verify_bitwise_xor_7: verify_bitwise_xor_7_interaction_claim,
+            verify_bitwise_xor_8: verify_bitwise_xor_8_interaction_claim,
             verify_bitwise_xor_9: verify_bitwise_xor_9_interaction_claim,
+            verify_bitwise_xor_12: verify_bitwise_xor_12_interaction_claim,
         }
     }
 }
 
 pub struct CairoInteractionElements {
     pub opcodes: relations::Opcodes,
+    pub blake_round: relations::BlakeRound,
+    pub blake_g: relations::BlakeG,
+    pub blake_sigma: relations::BlakeRoundSigma,
+    pub triple_xor_32: relations::TripleXor32,
+    pub verify_bitwise_xor_4: relations::VerifyBitwiseXor_4,
+    pub verify_bitwise_xor_7: relations::VerifyBitwiseXor_7,
+    pub verify_bitwise_xor_12: relations::VerifyBitwiseXor_12,
+    pub verify_bitwise_xor_8: relations::VerifyBitwiseXor_8,
     pub verify_instruction: relations::VerifyInstruction,
     pub memory_address_to_id: relations::MemoryAddressToId,
     pub memory_id_to_value: relations::MemoryIdToBig,
@@ -373,10 +532,18 @@ impl CairoInteractionElements {
         CairoInteractionElements {
             opcodes: relations::Opcodes::draw(channel),
             verify_instruction: relations::VerifyInstruction::draw(channel),
+            blake_round: relations::BlakeRound::draw(channel),
+            blake_g: relations::BlakeG::draw(channel),
+            blake_sigma: relations::BlakeRoundSigma::draw(channel),
+            triple_xor_32: relations::TripleXor32::draw(channel),
             memory_address_to_id: relations::MemoryAddressToId::draw(channel),
             memory_id_to_value: relations::MemoryIdToBig::draw(channel),
             range_checks: RangeChecksInteractionElements::draw(channel),
+            verify_bitwise_xor_4: relations::VerifyBitwiseXor_4::draw(channel),
+            verify_bitwise_xor_7: relations::VerifyBitwiseXor_7::draw(channel),
+            verify_bitwise_xor_8: relations::VerifyBitwiseXor_8::draw(channel),
             verify_bitwise_xor_9: relations::VerifyBitwiseXor_9::draw(channel),
+            verify_bitwise_xor_12: relations::VerifyBitwiseXor_12::draw(channel),
         }
     }
 }
@@ -385,11 +552,19 @@ impl CairoInteractionElements {
 pub struct CairoInteractionClaim {
     pub opcodes: OpcodeInteractionClaim,
     pub verify_instruction: verify_instruction::InteractionClaim,
+    pub blake_round: blake_round::InteractionClaim,
+    pub blake_g: blake_g::InteractionClaim,
+    pub blake_sigma: blake_round_sigma::InteractionClaim,
+    pub triple_xor_32: triple_xor_32::InteractionClaim,
     pub builtins: BuiltinsInteractionClaim,
     pub memory_address_to_id: memory_address_to_id::InteractionClaim,
     pub memory_id_to_value: memory_id_to_big::InteractionClaim,
     pub range_checks: RangeChecksInteractionClaim,
+    pub verify_bitwise_xor_4: verify_bitwise_xor_4::InteractionClaim,
+    pub verify_bitwise_xor_7: verify_bitwise_xor_7::InteractionClaim,
+    pub verify_bitwise_xor_8: verify_bitwise_xor_8::InteractionClaim,
     pub verify_bitwise_xor_9: verify_bitwise_xor_9::InteractionClaim,
+    pub verify_bitwise_xor_12: verify_bitwise_xor_12::InteractionClaim,
 }
 impl CairoInteractionClaim {
     pub fn mix_into(&self, channel: &mut impl Channel) {
@@ -427,6 +602,10 @@ pub fn lookup_sum(
 pub struct CairoComponents {
     opcodes: OpcodeComponents,
     verify_instruction: verify_instruction::Component,
+    blake_round: blake_round::Component,
+    blake_g: blake_g::Component,
+    blake_sigma: blake_round_sigma::Component,
+    triple_xor_32: triple_xor_32::Component,
     builtins: BuiltinComponents,
     memory_address_to_id: memory_address_to_id::Component,
     memory_id_to_value: (
@@ -434,8 +613,11 @@ pub struct CairoComponents {
         memory_id_to_big::SmallComponent,
     ),
     range_checks: RangeChecksComponents,
+    verify_bitwise_xor_4: verify_bitwise_xor_4::Component,
+    verify_bitwise_xor_7: verify_bitwise_xor_7::Component,
+    verify_bitwise_xor_8: verify_bitwise_xor_8::Component,
     verify_bitwise_xor_9: verify_bitwise_xor_9::Component,
-    // ...
+    verify_bitwise_xor_12: verify_bitwise_xor_12::Component,
 }
 impl CairoComponents {
     pub fn new(
@@ -453,6 +635,7 @@ impl CairoComponents {
             interaction_elements,
             &interaction_claim.opcodes,
         );
+
         let verify_instruction_component = verify_instruction::Component::new(
             tree_span_provider,
             verify_instruction::Eval {
@@ -470,12 +653,77 @@ impl CairoComponents {
             },
             interaction_claim.verify_instruction.claimed_sum,
         );
+
+        let blake_round_component = blake_round::Component::new(
+            tree_span_provider,
+            blake_round::Eval {
+                claim: cairo_claim.blake_round,
+                blake_g_lookup_elements: interaction_elements.blake_g.clone(),
+                blake_round_lookup_elements: interaction_elements.blake_round.clone(),
+                blake_round_sigma_lookup_elements: interaction_elements.blake_sigma.clone(),
+                memory_address_to_id_lookup_elements: interaction_elements
+                    .memory_address_to_id
+                    .clone(),
+                memory_id_to_big_lookup_elements: interaction_elements.memory_id_to_value.clone(),
+                range_check_7_2_5_lookup_elements: interaction_elements
+                    .range_checks
+                    .rc_7_2_5
+                    .clone(),
+            },
+            interaction_claim.blake_round.claimed_sum,
+        );
+
+        let blake_g_component = blake_g::Component::new(
+            tree_span_provider,
+            blake_g::Eval {
+                claim: cairo_claim.blake_g,
+                blake_g_lookup_elements: interaction_elements.blake_g.clone(),
+                verify_bitwise_xor_12_lookup_elements: interaction_elements
+                    .verify_bitwise_xor_12
+                    .clone(),
+                verify_bitwise_xor_4_lookup_elements: interaction_elements
+                    .verify_bitwise_xor_4
+                    .clone(),
+                verify_bitwise_xor_7_lookup_elements: interaction_elements
+                    .verify_bitwise_xor_7
+                    .clone(),
+                verify_bitwise_xor_8_lookup_elements: interaction_elements
+                    .verify_bitwise_xor_8
+                    .clone(),
+                verify_bitwise_xor_9_lookup_elements: interaction_elements
+                    .verify_bitwise_xor_9
+                    .clone(),
+            },
+            interaction_claim.blake_g.claimed_sum,
+        );
+
+        let blake_sigma_component = blake_round_sigma::Component::new(
+            tree_span_provider,
+            blake_round_sigma::Eval {
+                blake_round_sigma_lookup_elements: interaction_elements.blake_sigma.clone(),
+            },
+            interaction_claim.blake_sigma.claimed_sum,
+        );
+
+        let triple_xor_32_component = triple_xor_32::Component::new(
+            tree_span_provider,
+            triple_xor_32::Eval {
+                claim: cairo_claim.triple_xor_32,
+                triple_xor_32_lookup_elements: interaction_elements.triple_xor_32.clone(),
+                verify_bitwise_xor_8_lookup_elements: interaction_elements
+                    .verify_bitwise_xor_8
+                    .clone(),
+            },
+            interaction_claim.triple_xor_32.claimed_sum,
+        );
+
         let builtin_components = BuiltinComponents::new(
             tree_span_provider,
             &cairo_claim.builtins,
             interaction_elements,
             &interaction_claim.builtins,
         );
+
         let memory_address_to_id_component = memory_address_to_id::Component::new(
             tree_span_provider,
             memory_address_to_id::Eval::new(
@@ -484,6 +732,7 @@ impl CairoComponents {
             ),
             interaction_claim.memory_address_to_id.clone().claimed_sum,
         );
+
         let memory_id_to_value_component = memory_id_to_big::BigComponent::new(
             tree_span_provider,
             memory_id_to_big::BigEval::new(
@@ -493,6 +742,7 @@ impl CairoComponents {
             ),
             interaction_claim.memory_id_to_value.clone().big_claimed_sum,
         );
+
         let small_memory_id_to_value_component = memory_id_to_big::SmallComponent::new(
             tree_span_provider,
             memory_id_to_big::SmallEval::new(
@@ -505,23 +755,68 @@ impl CairoComponents {
                 .clone()
                 .small_claimed_sum,
         );
+
         let range_checks_component = RangeChecksComponents::new(
             tree_span_provider,
             &interaction_elements.range_checks,
             &interaction_claim.range_checks,
         );
-        let verify_bitwise_xor_9_component = verify_bitwise_xor_9::Component::new(
-            tree_span_provider,
-            verify_bitwise_xor_9::Eval {
-                verify_bitwise_xor_9_lookup_elements: interaction_elements
-                    .verify_bitwise_xor_9
-                    .clone(),
-            },
-            interaction_claim.verify_bitwise_xor_9.claimed_sum,
+
+        let verify_bitwise_components = (
+            verify_bitwise_xor_4::Component::new(
+                tree_span_provider,
+                verify_bitwise_xor_4::Eval {
+                    verify_bitwise_xor_4_lookup_elements: interaction_elements
+                        .verify_bitwise_xor_4
+                        .clone(),
+                },
+                interaction_claim.verify_bitwise_xor_4.claimed_sum,
+            ),
+            verify_bitwise_xor_7::Component::new(
+                tree_span_provider,
+                verify_bitwise_xor_7::Eval {
+                    verify_bitwise_xor_7_lookup_elements: interaction_elements
+                        .verify_bitwise_xor_7
+                        .clone(),
+                },
+                interaction_claim.verify_bitwise_xor_7.claimed_sum,
+            ),
+            verify_bitwise_xor_8::Component::new(
+                tree_span_provider,
+                verify_bitwise_xor_8::Eval {
+                    verify_bitwise_xor_8_lookup_elements: interaction_elements
+                        .verify_bitwise_xor_8
+                        .clone(),
+                },
+                interaction_claim.verify_bitwise_xor_8.claimed_sum,
+            ),
+            verify_bitwise_xor_9::Component::new(
+                tree_span_provider,
+                verify_bitwise_xor_9::Eval {
+                    verify_bitwise_xor_9_lookup_elements: interaction_elements
+                        .verify_bitwise_xor_9
+                        .clone(),
+                },
+                interaction_claim.verify_bitwise_xor_9.claimed_sum,
+            ),
+            verify_bitwise_xor_12::Component::new(
+                tree_span_provider,
+                verify_bitwise_xor_12::Eval {
+                    verify_bitwise_xor_12_lookup_elements: interaction_elements
+                        .verify_bitwise_xor_12
+                        .clone(),
+                },
+                interaction_claim.verify_bitwise_xor_12.claimed_sum,
+            ),
         );
+
         Self {
             opcodes: opcode_components,
             verify_instruction: verify_instruction_component,
+            blake_round: blake_round_component,
+            blake_g: blake_g_component,
+            blake_sigma: blake_sigma_component,
+            triple_xor_32: triple_xor_32_component,
             builtins: builtin_components,
             memory_address_to_id: memory_address_to_id_component,
             memory_id_to_value: (
@@ -529,7 +824,11 @@ impl CairoComponents {
                 small_memory_id_to_value_component,
             ),
             range_checks: range_checks_component,
-            verify_bitwise_xor_9: verify_bitwise_xor_9_component,
+            verify_bitwise_xor_4: verify_bitwise_components.0,
+            verify_bitwise_xor_7: verify_bitwise_components.1,
+            verify_bitwise_xor_8: verify_bitwise_components.2,
+            verify_bitwise_xor_9: verify_bitwise_components.3,
+            verify_bitwise_xor_12: verify_bitwise_components.4,
         }
     }
 
@@ -537,6 +836,12 @@ impl CairoComponents {
         chain!(
             self.opcodes.provers(),
             [&self.verify_instruction as &dyn ComponentProver<SimdBackend>,],
+            [
+                &self.blake_round as &dyn ComponentProver<SimdBackend>,
+                &self.blake_g as &dyn ComponentProver<SimdBackend>,
+                &self.blake_sigma as &dyn ComponentProver<SimdBackend>,
+            ],
+            [&self.triple_xor_32 as &dyn ComponentProver<SimdBackend>,],
             self.builtins.provers(),
             [
                 &self.memory_address_to_id as &dyn ComponentProver<SimdBackend>,
@@ -544,7 +849,13 @@ impl CairoComponents {
                 &self.memory_id_to_value.1 as &dyn ComponentProver<SimdBackend>,
             ],
             self.range_checks.provers(),
-            [&self.verify_bitwise_xor_9 as &dyn ComponentProver<SimdBackend>,],
+            [
+                &self.verify_bitwise_xor_4 as &dyn ComponentProver<SimdBackend>,
+                &self.verify_bitwise_xor_7 as &dyn ComponentProver<SimdBackend>,
+                &self.verify_bitwise_xor_8 as &dyn ComponentProver<SimdBackend>,
+                &self.verify_bitwise_xor_9 as &dyn ComponentProver<SimdBackend>,
+                &self.verify_bitwise_xor_12 as &dyn ComponentProver<SimdBackend>,
+            ],
         )
         .collect()
     }

@@ -86,7 +86,7 @@ impl InteractionClaimGenerator {
     pub fn write_interaction_trace<MC: MerkleChannel>(
         self,
         tree_builder: &mut TreeBuilder<'_, '_, SimdBackend, MC>,
-        verify_bitwise_xor_9: &relations::VerifyBitwiseXor_9,
+        verify_bitwise_xor_7: &relations::VerifyBitwiseXor_7,
     ) -> InteractionClaim
     where
         SimdBackend: BackendForChannel<MC>,
@@ -103,7 +103,7 @@ impl InteractionClaimGenerator {
             .zip(self.lookup_data.mults)
             .enumerate()
         {
-            let denom = verify_bitwise_xor_9.combine(values);
+            let denom = verify_bitwise_xor_7.combine(values);
             col_gen.write_frac(i, -PackedQM31::one() * mults, denom);
         }
         col_gen.finalize_col();

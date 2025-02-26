@@ -8,12 +8,12 @@ pub struct Eval {
 pub struct Claim {}
 impl Claim {
     pub fn log_sizes(&self) -> TreeVec<Vec<u32>> {
-        let trace_log_sizes = vec![4; 0];
+        let trace_log_sizes = vec![4; 1];
         let interaction_log_sizes = vec![4; SECURE_EXTENSION_DEGREE];
         TreeVec::new(vec![vec![], trace_log_sizes, interaction_log_sizes])
     }
 
-    pub fn mix_into(&self, channel: &mut impl Channel) {}
+    pub fn mix_into(&self, _channel: &mut impl Channel) {}
 }
 
 #[derive(Copy, Clone, Serialize, Deserialize, CairoSerialize)]
@@ -58,9 +58,10 @@ impl FrameworkEval for Eval {
         let blakesigma_14 = eval.get_preprocessed_column((BlakeSigma::new(14)).id());
         let blakesigma_15 = eval.get_preprocessed_column((BlakeSigma::new(15)).id());
         let seq = eval.get_preprocessed_column(Seq::new(self.log_size()).id());
+        let mult = eval.next_trace_mask();
         eval.add_to_relation(RelationEntry::new(
             &self.blake_round_sigma_lookup_elements,
-            -E::EF::one(),
+            -E::EF::from(mult),
             &[
                 seq.clone(),
                 blakesigma_0.clone(),

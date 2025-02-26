@@ -4,7 +4,7 @@ pub const BITWISE_XOR_4_N_BITS: u32 = 4;
 pub const BITWISE_XOR_4_LOG_SIZE: u32 = BITWISE_XOR_4_N_BITS * 2;
 
 pub struct Eval {
-    pub verify_bitwise_xor_9_lookup_elements: relations::VerifyBitwiseXor_9,
+    pub verify_bitwise_xor_4_lookup_elements: relations::VerifyBitwiseXor_4,
 }
 
 #[derive(Copy, Clone, Serialize, Deserialize, CairoSerialize)]
@@ -54,7 +54,7 @@ impl FrameworkEval for Eval {
         let multiplicity = eval.next_trace_mask();
 
         eval.add_to_relation(RelationEntry::new(
-            &self.verify_bitwise_xor_9_lookup_elements,
+            &self.verify_bitwise_xor_4_lookup_elements,
             -E::EF::from(multiplicity),
             &[xor_a, xor_b, xor_c],
         ));
