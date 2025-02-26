@@ -182,7 +182,7 @@ pub struct CairoClaimGenerator {
     // Internal components.
     verify_instruction_trace_generator: verify_instruction::ClaimGenerator,
     builtins: BuiltinsClaimGenerator,
-    // blake_round_trace_generator: blake_round::ClaimGenerator,
+    blake_round_trace_generator: blake_round::ClaimGenerator,
     blake_g_trace_generator: blake_g::ClaimGenerator,
     blake_sigma_trace_generator: blake_round_sigma::ClaimGenerator,
     memory_address_to_id_trace_generator: memory_address_to_id::ClaimGenerator,
@@ -242,14 +242,14 @@ impl CairoClaimGenerator {
             final_state,
         };
 
-        // let blake_round_trace_generator = blake_round::ClaimGenerator::new(input.memory);
+        let blake_round_trace_generator = blake_round::ClaimGenerator::new(input.memory);
         
         Self {
             public_data,
             opcodes,
             verify_instruction_trace_generator,
             builtins,
-            // blake_round_trace_generator,
+            blake_round_trace_generator,
             blake_g_trace_generator,
             blake_sigma_trace_generator,
             memory_address_to_id_trace_generator,
@@ -274,7 +274,7 @@ impl CairoClaimGenerator {
         let span = span!(Level::INFO, "write opcode trace").entered();
         let (opcodes_claim, opcodes_interaction_gen) = self.opcodes.write_trace(
             tree_builder,
-            // &mut self.blake_round_trace_generator,
+            &mut self.blake_round_trace_generator,
             &self.memory_address_to_id_trace_generator,
             &self.memory_id_to_value_trace_generator,
             &self.range_checks_trace_generator.rc_11_trace_generator,

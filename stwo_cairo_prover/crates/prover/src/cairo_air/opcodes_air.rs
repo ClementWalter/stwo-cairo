@@ -36,7 +36,7 @@ pub struct OpcodeClaim {
     pub assert_eq: Vec<assert_eq_opcode::Claim>,
     pub assert_eq_imm: Vec<assert_eq_opcode_imm::Claim>,
     pub assert_eq_double_deref: Vec<assert_eq_opcode_double_deref::Claim>,
-    // pub blake: Vec<blake_compress_opcode::Claim>,
+    pub blake: Vec<blake_compress_opcode::Claim>,
     pub call: Vec<call_opcode::Claim>,
     pub call_op_1_base_fp: Vec<call_opcode_op_1_base_fp::Claim>,
     pub call_rel: Vec<call_opcode_rel::Claim>,
@@ -71,7 +71,7 @@ impl OpcodeClaim {
         self.assert_eq_double_deref
             .iter()
             .for_each(|c| c.mix_into(channel));
-        // self.blake.iter().for_each(|c| c.mix_into(channel));
+        self.blake.iter().for_each(|c| c.mix_into(channel));
         self.call.iter().for_each(|c| c.mix_into(channel));
         self.call_op_1_base_fp
             .iter()
@@ -111,7 +111,7 @@ impl OpcodeClaim {
             self.assert_eq.iter().map(|c| c.log_sizes()),
             self.assert_eq_imm.iter().map(|c| c.log_sizes()),
             self.assert_eq_double_deref.iter().map(|c| c.log_sizes()),
-            // self.blake.iter().map(|c| c.log_sizes()),
+            self.blake.iter().map(|c| c.log_sizes()),
             self.call.iter().map(|c| c.log_sizes()),
             self.call_op_1_base_fp.iter().map(|c| c.log_sizes()),
             self.call_rel.iter().map(|c| c.log_sizes()),
@@ -394,7 +394,7 @@ impl OpcodesClaimGenerator {
     pub fn write_trace<MC: MerkleChannel>(
         self,
         tree_builder: &mut TreeBuilder<'_, '_, SimdBackend, MC>,
-        // blake_round_trace_generator: &mut blake_round::ClaimGenerator,
+        blake_round_trace_generator: &mut blake_round::ClaimGenerator,
         memory_address_to_id_trace_generator: &memory_address_to_id::ClaimGenerator,
         memory_id_to_value_trace_generator: &memory_id_to_big::ClaimGenerator,
         range_check_11_trace_generator: &range_check_11::ClaimGenerator,
@@ -528,22 +528,22 @@ impl OpcodesClaimGenerator {
                 )
             })
             .unzip();
-        // let (blake_claims, blake_interaction_gens) = self
-        //     .blake
-        //     .into_iter()
-        //     .map(|gen| {
-        //         gen.write_trace(
-        //             tree_builder,
-        //             blake_round_trace_generator,
-        //             memory_address_to_id_trace_generator,
-        //             memory_id_to_value_trace_generator,
-        //             range_check_7_2_5_trace_generator,
-        //             triple_xor_32_trace_generator,
-        //             verify_bitwise_xor_8_trace_generator,
-        //             verify_instruction_trace_generator,
-        //         )
-        //     })
-        //     .unzip();
+        let (blake_claims, blake_interaction_gens) = self
+            .blake
+            .into_iter()
+            .map(|gen| {
+                gen.write_trace(
+                    tree_builder,
+                    blake_round_trace_generator,
+                    memory_address_to_id_trace_generator,
+                    memory_id_to_value_trace_generator,
+                    range_check_7_2_5_trace_generator,
+                    triple_xor_32_trace_generator,
+                    verify_bitwise_xor_8_trace_generator,
+                    verify_instruction_trace_generator,
+                )
+            })
+            .unzip();
         let (call_claims, call_interaction_gens) = self
             .call
             .into_iter()
@@ -766,7 +766,7 @@ impl OpcodesClaimGenerator {
                 assert_eq: assert_eq_claims,
                 assert_eq_imm: assert_eq_imm_claims,
                 assert_eq_double_deref: assert_eq_double_deref_claims,
-                // blake: blake_claims,
+                blake: blake_claims,
                 call: call_claims,
                 call_op_1_base_fp: call_op_1_base_fp_claims,
                 call_rel: call_rel_claims,
@@ -796,7 +796,7 @@ impl OpcodesClaimGenerator {
                 assert_eq: assert_eq_interaction_gens,
                 assert_eq_imm: assert_eq_imm_interaction_gens,
                 assert_eq_double_deref: assert_eq_double_deref_interaction_gens,
-                // blake: blake_interaction_gens,
+                blake: blake_interaction_gens,
                 call: call_interaction_gens,
                 call_op_1_base_fp: call_op_1_base_fp_interaction_gens,
                 call_rel: call_rel_interaction_gens,
@@ -831,7 +831,7 @@ pub struct OpcodeInteractionClaim {
     assert_eq: Vec<assert_eq_opcode::InteractionClaim>,
     assert_eq_imm: Vec<assert_eq_opcode_imm::InteractionClaim>,
     assert_eq_double_deref: Vec<assert_eq_opcode_double_deref::InteractionClaim>,
-    // blake: Vec<blake_compress_opcode::InteractionClaim>,
+    blake: Vec<blake_compress_opcode::InteractionClaim>,
     call: Vec<call_opcode::InteractionClaim>,
     call_op_1_base_fp: Vec<call_opcode_op_1_base_fp::InteractionClaim>,
     call_rel: Vec<call_opcode_rel::InteractionClaim>,
@@ -866,7 +866,7 @@ impl OpcodeInteractionClaim {
         self.assert_eq_double_deref
             .iter()
             .for_each(|c| c.mix_into(channel));
-        // self.blake.iter().for_each(|c| c.mix_into(channel));
+        self.blake.iter().for_each(|c| c.mix_into(channel));
         self.call.iter().for_each(|c| c.mix_into(channel));
         self.call_op_1_base_fp
             .iter()
@@ -992,7 +992,7 @@ pub struct OpcodesInteractionClaimGenerator {
     assert_eq: Vec<assert_eq_opcode::InteractionClaimGenerator>,
     assert_eq_imm: Vec<assert_eq_opcode_imm::InteractionClaimGenerator>,
     assert_eq_double_deref: Vec<assert_eq_opcode_double_deref::InteractionClaimGenerator>,
-    // blake: Vec<blake_compress_opcode::InteractionClaimGenerator>,
+    blake: Vec<blake_compress_opcode::InteractionClaimGenerator>,
     call: Vec<call_opcode::InteractionClaimGenerator>,
     call_op_1_base_fp: Vec<call_opcode_op_1_base_fp::InteractionClaimGenerator>,
     call_rel: Vec<call_opcode_rel::InteractionClaimGenerator>,
@@ -1148,23 +1148,23 @@ impl OpcodesInteractionClaimGenerator {
                 )
             })
             .collect();
-        // let blake_interaction_claims = self
-        //     .blake
-        //     .into_iter()
-        //     .map(|gen| {
-        //         gen.write_interaction_trace(
-        //             tree_builder,
-        //             &interaction_elements.blake_round,
-        //             &interaction_elements.memory_address_to_id,
-        //             &interaction_elements.memory_id_to_value,
-        //             &interaction_elements.opcodes,
-        //             &interaction_elements.range_checks.rc_7_2_5,
-        //             &interaction_elements.triple_xor_32,
-        //             &interaction_elements.verify_bitwise_xor_8,
-        //             &interaction_elements.verify_instruction,
-        //         )
-        //     })
-        //     .collect();
+        let blake_interaction_claims = self
+            .blake
+            .into_iter()
+            .map(|gen| {
+                gen.write_interaction_trace(
+                    tree_builder,
+                    &interaction_elements.blake_round,
+                    &interaction_elements.memory_address_to_id,
+                    &interaction_elements.memory_id_to_value,
+                    &interaction_elements.opcodes,
+                    &interaction_elements.range_checks.rc_7_2_5,
+                    &interaction_elements.triple_xor_32,
+                    &interaction_elements.verify_bitwise_xor_8,
+                    &interaction_elements.verify_instruction,
+                )
+            })
+            .collect();
         let call_interaction_claims = self
             .call
             .into_iter()
@@ -1403,7 +1403,7 @@ impl OpcodesInteractionClaimGenerator {
             assert_eq: assert_eq_interaction_claims,
             assert_eq_imm: assert_eq_imm_interaction_claims,
             assert_eq_double_deref: assert_eq_double_deref_interaction_claims,
-            // blake: blake_interaction_claims,
+            blake: blake_interaction_claims,
             call: call_interaction_claims,
             call_op_1_base_fp: call_op_1_base_fp_interaction_claims,
             call_rel: call_rel_interaction_claims,
@@ -1436,7 +1436,7 @@ pub struct OpcodeComponents {
     assert_eq: Vec<assert_eq_opcode::Component>,
     assert_eq_imm: Vec<assert_eq_opcode_imm::Component>,
     assert_eq_double_deref: Vec<assert_eq_opcode_double_deref::Component>,
-    // blake: Vec<blake_compress_opcode::Component>,
+    blake: Vec<blake_compress_opcode::Component>,
     call: Vec<call_opcode::Component>,
     call_op_1_base_fp: Vec<call_opcode_op_1_base_fp::Component>,
     call_rel: Vec<call_opcode_rel::Component>,
@@ -1696,39 +1696,39 @@ impl OpcodeComponents {
                 )
             })
             .collect_vec();
-        // let blake_components = claim
-        //     .blake
-        //     .iter()
-        //     .zip(interaction_claim.blake.iter())
-        //     .map(|(&claim, &interaction_claim)| {
-        //         blake_compress_opcode::Component::new(
-        //             tree_span_provider,
-        //             blake_compress_opcode::Eval {
-        //                 claim,
-        //                 blake_round_lookup_elements: interaction_elements.blake_round.clone(),
-        //                 memory_address_to_id_lookup_elements: interaction_elements
-        //                     .memory_address_to_id
-        //                     .clone(),
-        //                 memory_id_to_big_lookup_elements: interaction_elements
-        //                     .memory_id_to_value
-        //                     .clone(),
-        //                 opcodes_lookup_elements: interaction_elements.opcodes.clone(),
-        //                 range_check_7_2_5_lookup_elements: interaction_elements
-        //                     .range_checks
-        //                     .rc_7_2_5
-        //                     .clone(),
-        //                 triple_xor_32_lookup_elements: interaction_elements.triple_xor_32.clone(),
-        //                 verify_bitwise_xor_8_lookup_elements: interaction_elements
-        //                     .verify_bitwise_xor_8
-        //                     .clone(),
-        //                 verify_instruction_lookup_elements: interaction_elements
-        //                     .verify_instruction
-        //                     .clone(),
-        //             },
-        //             interaction_claim.claimed_sum,
-        //         )
-        //     })
-        //     .collect_vec();
+        let blake_components = claim
+            .blake
+            .iter()
+            .zip(interaction_claim.blake.iter())
+            .map(|(&claim, &interaction_claim)| {
+                blake_compress_opcode::Component::new(
+                    tree_span_provider,
+                    blake_compress_opcode::Eval {
+                        claim,
+                        blake_round_lookup_elements: interaction_elements.blake_round.clone(),
+                        memory_address_to_id_lookup_elements: interaction_elements
+                            .memory_address_to_id
+                            .clone(),
+                        memory_id_to_big_lookup_elements: interaction_elements
+                            .memory_id_to_value
+                            .clone(),
+                        opcodes_lookup_elements: interaction_elements.opcodes.clone(),
+                        range_check_7_2_5_lookup_elements: interaction_elements
+                            .range_checks
+                            .rc_7_2_5
+                            .clone(),
+                        triple_xor_32_lookup_elements: interaction_elements.triple_xor_32.clone(),
+                        verify_bitwise_xor_8_lookup_elements: interaction_elements
+                            .verify_bitwise_xor_8
+                            .clone(),
+                        verify_instruction_lookup_elements: interaction_elements
+                            .verify_instruction
+                            .clone(),
+                    },
+                    interaction_claim.claimed_sum,
+                )
+            })
+            .collect_vec();
         let call_components = claim
             .call
             .iter()
@@ -2172,7 +2172,7 @@ impl OpcodeComponents {
             assert_eq: assert_eq_components,
             assert_eq_imm: assert_eq_imm_components,
             assert_eq_double_deref: assert_eq_double_deref_components,
-            // blake: blake_components,
+            blake: blake_components,
             call: call_components,
             call_op_1_base_fp: call_op_1_base_fp_components,
             call_rel: call_rel_components,
@@ -2245,11 +2245,11 @@ impl OpcodeComponents {
                 .iter()
                 .map(|component| component as &dyn ComponentProver<SimdBackend>),
         );
-        // vec.extend(
-        //     self.blake
-        //         .iter()
-        //         .map(|component| component as &dyn ComponentProver<SimdBackend>),
-        // );
+        vec.extend(
+            self.blake
+                .iter()
+                .map(|component| component as &dyn ComponentProver<SimdBackend>),
+        );
         vec.extend(
             self.call
                 .iter()
@@ -2362,7 +2362,7 @@ impl std::fmt::Display for OpcodeComponents {
         writeln!(f, "assert_eq_double_deref:")?;
         writeln!(f, "{}", display_components(&self.assert_eq_double_deref))?;
         writeln!(f, "blake:")?;
-        // writeln!(f, "{}", display_components(&self.blake))?;
+        writeln!(f, "{}", display_components(&self.blake))?;
         writeln!(f, "call:")?;
         writeln!(f, "{}", display_components(&self.call))?;
         writeln!(f, "call_op_1_base_fp:")?;
