@@ -266,6 +266,8 @@ impl FrameworkEval for Eval {
         let blake_g_output_limb_5_col208 = eval.next_trace_mask();
         let blake_g_output_limb_6_col209 = eval.next_trace_mask();
         let blake_g_output_limb_7_col210 = eval.next_trace_mask();
+        let enabler_col_211 = eval.next_trace_mask();
+
         eval.add_to_relation(RelationEntry::new(
             &self.blake_round_sigma_lookup_elements,
             E::EF::one(),
@@ -1156,7 +1158,7 @@ impl FrameworkEval for Eval {
 
         eval.add_to_relation(RelationEntry::new(
             &self.blake_round_lookup_elements,
-            E::EF::one(),
+            E::EF::from(enabler_col_211.clone()),
             &[
                 input_limb_0_col0.clone(),
                 input_limb_1_col1.clone(),
@@ -1198,7 +1200,7 @@ impl FrameworkEval for Eval {
 
         eval.add_to_relation(RelationEntry::new(
             &self.blake_round_lookup_elements,
-            -E::EF::one(),
+            E::EF::from(-enabler_col_211.clone()),
             &[
                 input_limb_0_col0.clone(),
                 (input_limb_1_col1.clone() + M31_1.clone()),

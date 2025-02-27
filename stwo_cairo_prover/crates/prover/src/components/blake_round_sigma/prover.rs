@@ -84,7 +84,7 @@ impl InteractionClaimGenerator {
     {
         let mut logup_gen = LogupTraceGenerator::new(4);
         assert_eq!(self.lookup_data.multiplicities.len(), 1);
-        let mult = <_ as Into<PackedQM31>>::into(-self.lookup_data.multiplicities[0]);
+        let mult = <_ as Into<PackedQM31>>::into(self.lookup_data.multiplicities[0]);
         let sigmas = BlakeRoundSigma::deduce_output(unsafe {
             PackedM31::from_simd_unchecked(u32x16::from_array([
                 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 0, 0, 0, 0, 0,

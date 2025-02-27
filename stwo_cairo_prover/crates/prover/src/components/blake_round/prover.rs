@@ -14,7 +14,7 @@ use crate::components::{
 
 pub type InputType = (M31, M31, ([UInt32; 16], M31));
 pub type PackedInputType = (PackedM31, PackedM31, ([PackedUInt32; 16], PackedM31));
-const N_TRACE_COLUMNS: usize = 211;
+const N_TRACE_COLUMNS: usize = 211 + 1;
 
 pub struct ClaimGenerator {
     inputs: Vec<InputType>,
@@ -60,6 +60,7 @@ impl ClaimGenerator {
         (
             Claim { log_size },
             InteractionClaimGenerator {
+                n_rows,
                 log_size,
                 lookup_data,
             },
@@ -124,6 +125,7 @@ fn write_trace_simd(
     let UInt16_2 = PackedUInt16::broadcast(UInt16::from(2));
     let UInt16_7 = PackedUInt16::broadcast(UInt16::from(7));
     let UInt16_9 = PackedUInt16::broadcast(UInt16::from(9));
+    let enabler = Enabler::new(n_rows);
 
     trace
         .par_iter_mut()
@@ -2352,6 +2354,8 @@ fn write_trace_simd(
                     input_limb_34_col34,
                 ];
 
+                *row[211] = enabler.packed_at(row_index);
+
                 // Add sub-components inputs.
                 blake_round_sigma_state.add_inputs(&blake_round_sigma_inputs_0);
                 range_check_7_2_5_state.add_inputs(&range_check_7_2_5_inputs_0);
@@ -2489,6 +2493,7 @@ struct LookupData {
 }
 
 pub struct InteractionClaimGenerator {
+    n_rows: usize,
     log_size: u32,
     lookup_data: LookupData,
 }
@@ -2507,6 +2512,7 @@ impl InteractionClaimGenerator {
         SimdBackend: BackendForChannel<MC>,
     {
         let mut logup_gen = LogupTraceGenerator::new(self.log_size);
+        let enabler = Enabler::new(self.n_rows);
 
         // Sum logup terms in pairs.
         let mut col_gen = logup_gen.new_col();
@@ -2870,7 +2876,7 @@ impl InteractionClaimGenerator {
         {
             let denom0: PackedQM31 = blake_g.combine(values0);
             let denom1: PackedQM31 = blake_round.combine(values1);
-            col_gen.write_frac(i, denom0 + denom1, denom0 * denom1);
+            col_gen.write_frac(i, denom0 * enabler.packed_at(i) + denom1, denom0 * denom1);
         }
         col_gen.finalize_col();
 
@@ -2878,7 +2884,7 @@ impl InteractionClaimGenerator {
         let mut col_gen = logup_gen.new_col();
         for (i, values) in self.lookup_data.blake_round_1.iter().enumerate() {
             let denom = blake_round.combine(values);
-            col_gen.write_frac(i, -PackedQM31::one(), denom);
+            col_gen.write_frac(i, PackedQM31::from(-enabler.packed_at(i)), denom);
         }
         col_gen.finalize_col();
 
