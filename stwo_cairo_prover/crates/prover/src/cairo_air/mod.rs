@@ -89,10 +89,10 @@ where
         interaction_generator.write_interaction_trace(&mut tree_builder, &interaction_elements);
 
     // Validate lookup argument.
-    // debug_assert_eq!(
-    //     lookup_sum(&claim, &interaction_elements, &interaction_claim),
-    //     SecureField::zero()
-    // );
+    debug_assert_eq!(
+        lookup_sum(&claim, &interaction_elements, &interaction_claim),
+        SecureField::zero()
+    );
 
     interaction_claim.mix_into(channel);
     tree_builder.commit(channel);

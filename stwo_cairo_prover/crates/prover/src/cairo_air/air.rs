@@ -243,7 +243,7 @@ impl CairoClaimGenerator {
         };
 
         let blake_round_trace_generator = blake_round::ClaimGenerator::new(input.memory);
-        
+
         Self {
             public_data,
             opcodes,
@@ -590,12 +590,20 @@ pub fn lookup_sum(
     // Otherwise, the claimed_sum is the total_sum.
     sum += interaction_claim.opcodes.sum();
     sum += interaction_claim.verify_instruction.claimed_sum;
+    sum += interaction_claim.blake_round.claimed_sum;
+    sum += interaction_claim.blake_g.claimed_sum;
+    sum += interaction_claim.blake_sigma.claimed_sum;
+    sum += interaction_claim.triple_xor_32.claimed_sum;
     sum += interaction_claim.builtins.sum();
     sum += interaction_claim.memory_address_to_id.claimed_sum;
     sum += interaction_claim.memory_id_to_value.big_claimed_sum;
     sum += interaction_claim.memory_id_to_value.small_claimed_sum;
     sum += interaction_claim.range_checks.sum();
+    sum += interaction_claim.verify_bitwise_xor_4.claimed_sum;
+    sum += interaction_claim.verify_bitwise_xor_7.claimed_sum;
+    sum += interaction_claim.verify_bitwise_xor_8.claimed_sum;
     sum += interaction_claim.verify_bitwise_xor_9.claimed_sum;
+    sum += interaction_claim.verify_bitwise_xor_12.claimed_sum;
     sum
 }
 

@@ -926,6 +926,9 @@ impl OpcodeInteractionClaim {
         for interaction_claim in &self.assert_eq_double_deref {
             sum += interaction_claim.claimed_sum;
         }
+        for interaction_claim in &self.blake {
+            sum += interaction_claim.claimed_sum;
+        }
         for interaction_claim in &self.call {
             sum += interaction_claim.claimed_sum;
         }
