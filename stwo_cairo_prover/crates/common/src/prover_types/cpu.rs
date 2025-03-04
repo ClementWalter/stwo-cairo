@@ -1,3 +1,4 @@
+use std::cmp::{max, min};
 use std::fmt::Debug;
 use std::ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Not, Rem, Shl, Shr, Sub};
 
@@ -42,6 +43,79 @@ impl ProverType for M31 {
     }
     fn r#type() -> String {
         "M31".to_string()
+    }
+}
+
+pub const CONV28_LEN: usize = 2 * FELT252_N_WORDS - 1;
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
+pub struct Conv28 {
+    pub values: [M31; CONV28_LEN],
+}
+
+impl Conv28 {
+    // Computes the limbs of a * b - c in long-form: limb i holds the i-th coefficient of the
+    // convolution of a and b, minus the i-th coefficient of c (where i < FELT252_N_WORDS).
+    // TODO: Optimize the convolution: e.g. using Karatsuba, Toom-Cook, or even NTT.
+    // TODO: Optimize the arithmetic in the convolution: M31 muls and adds are slower than u32s,
+    // because of the modulo operations, which are not necessary since the limbs are small.
+    pub fn calc(a: Felt252, b: Felt252, c: Felt252) -> Self {
+        let mut conv_res = vec![];
+
+        for i in 0..CONV28_LEN {
+            let mut conv = M31::default();
+            if i < FELT252_N_WORDS {
+                conv -= c.get_m31(i);
+            }
+            let convolution_start = max(i, FELT252_N_WORDS - 1) - (FELT252_N_WORDS - 1);
+            let convolution_end = min(i, FELT252_N_WORDS - 1);
+            for j in convolution_start..=convolution_end {
+                conv += a.get_m31(j) * b.get_m31(i - j)
+            }
+            conv_res.push(conv);
+        }
+
+        Self {
+            values: conv_res
+                .try_into()
+                .expect("Conv should have the right length"),
+        }
+    }
+
+    pub fn get_m31(&self, index: usize) -> M31 {
+        self.values[index]
+    }
+}
+
+impl Default for Conv28 {
+    fn default() -> Self {
+        Self {
+            values: [M31::default(); CONV28_LEN],
+        }
+    }
+}
+
+impl From<[u32; CONV28_LEN]> for Conv28 {
+    fn from(values: [u32; CONV28_LEN]) -> Conv28 {
+        Conv28 {
+            values: values.map(M31::from_u32_unchecked),
+        }
+    }
+}
+
+impl ProverType for Conv28 {
+    fn calc(&self) -> String {
+        format!(
+            "[{}]",
+            self.values
+                .iter()
+                .map(|v| v.to_string())
+                .collect::<Vec<String>>()
+                .join(", ")
+        )
+    }
+    fn r#type() -> String {
+        "Conv28".to_string()
     }
 }
 
