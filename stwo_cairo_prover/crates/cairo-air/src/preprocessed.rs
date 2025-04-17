@@ -288,15 +288,15 @@ pub fn partition_into_bit_segments<const N: usize>(
 
 /// Generates the map from 0..2^(sum_bits) to the corresponding value's partition segments.
 pub fn generate_partitioned_enumeration<const N: usize>(
-    n_bits_per_segmants: [u32; N],
+    n_bits_per_segments: [u32; N],
 ) -> [Vec<PackedM31>; N] {
-    let sum_bits = n_bits_per_segmants.iter().sum::<u32>();
+    let sum_bits = n_bits_per_segments.iter().sum::<u32>();
     assert!(sum_bits < MODULUS_BITS);
 
     let mut res = std::array::from_fn(|_| vec![]);
     for vec_row in 0..1 << (sum_bits - LOG_N_LANES) {
         let value = SIMD_ENUMERATION_0 + Simd::splat(vec_row * N_LANES as u32);
-        let segments = partition_into_bit_segments(value, n_bits_per_segmants);
+        let segments = partition_into_bit_segments(value, n_bits_per_segments);
         for i in 0..N {
             res[i].push(unsafe { PackedM31::from_simd_unchecked(segments[i]) });
         }
@@ -356,7 +356,7 @@ pub mod tests {
     use stwo_prover::core::backend::Column;
 
     #[test]
-    fn test_columns_are_in_decending_order() {
+    fn test_columns_are_in_descending_order() {
         let preprocessed_trace = PreProcessedTrace::canonical();
 
         let columns = preprocessed_trace.columns;
