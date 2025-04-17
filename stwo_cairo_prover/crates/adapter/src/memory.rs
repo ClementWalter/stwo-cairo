@@ -6,28 +6,6 @@ use cairo_vm::stdlib::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use stwo_cairo_common::memory::{N_BITS_PER_FELT, N_M31_IN_SMALL_FELT252};
 
-/// Prime 2^251 + 17 * 2^192 + 1 in little endian.
-pub const P_MIN_1: [u32; 8] = [
-    0x0000_0000,
-    0x0000_0000,
-    0x0000_0000,
-    0x0000_0000,
-    0x0000_0000,
-    0x0000_0000,
-    0x0000_0011,
-    0x0800_0000,
-];
-pub const P_MIN_2: [u32; 8] = [
-    0xFFFF_FFFF,
-    0xFFFF_FFFF,
-    0xFFFF_FFFF,
-    0xFFFF_FFFF,
-    0xFFFF_FFFF,
-    0xFFFF_FFFF,
-    0x0000_0010,
-    0x0800_0000,
-];
-
 pub(crate) type F252 = [u32; 8];
 
 #[repr(C)]
@@ -307,6 +285,28 @@ mod tests {
 
     use super::*;
     use crate::relocator::relocator_tests::create_test_relocator;
+
+    /// Prime 2^251 + 17 * 2^192 + 1 in little endian.
+    pub const P_MIN_1: [u32; 8] = [
+        0x0000_0000,
+        0x0000_0000,
+        0x0000_0000,
+        0x0000_0000,
+        0x0000_0000,
+        0x0000_0000,
+        0x0000_0011,
+        0x0800_0000,
+    ];
+    pub const P_MIN_2: [u32; 8] = [
+        0xFFFF_FFFF,
+        0xFFFF_FFFF,
+        0xFFFF_FFFF,
+        0xFFFF_FFFF,
+        0xFFFF_FFFF,
+        0xFFFF_FFFF,
+        0x0000_0010,
+        0x0800_0000,
+    ];
 
     #[test]
     fn test_memory() {
